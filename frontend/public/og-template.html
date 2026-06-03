@@ -1,0 +1,30 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:wght@600;700&family=IBM+Plex+Mono:wght@500&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1200px; height: 630px; background: #FAF7F2; font-family: "Newsreader", Georgia, serif; -webkit-font-smoothing: antialiased; }
+.wrap { width: 1200px; height: 630px; display: flex; align-items: center; padding: 64px 80px; gap: 56px; position: relative; overflow: hidden; }
+.wrap::before { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 70% at 28% 50%, rgba(224,79,44,0.06) 0%, rgba(224,79,44,0) 70%); pointer-events: none; }
+.logo { width: 360px; height: 360px; flex: none; border-radius: 14px; object-fit: cover; box-shadow: 0 24px 60px rgba(26,24,21,0.12); }
+.copy { flex: 1; }
+.eyebrow { font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 18px; letter-spacing: 0.16em; color: #5C544A; text-transform: uppercase; margin-bottom: 28px; display: flex; align-items: center; gap: 12px; }
+.eyebrow .dot { width: 9px; height: 9px; border-radius: 999px; background: #E04F2C; }
+h1 { font-size: 74px; line-height: 0.92; font-weight: 700; color: #1A1815; letter-spacing: -0.025em; margin-bottom: 22px; }
+h1 .accent { color: #E04F2C; }
+.sub { font-size: 26px; line-height: 1.32; color: #5C544A; font-family: -apple-system, "Helvetica Neue", sans-serif; max-width: 560px; }
+.foot { position: absolute; left: 80px; right: 80px; bottom: 44px; display: flex; justify-content: space-between; align-items: center; font-family: "IBM Plex Mono", monospace; font-size: 16px; color: #5C544A; letter-spacing: 0.08em; text-transform: uppercase; }
+.foot .l { display: flex; gap: 18px; align-items: center; }
+.foot .sep { color: #B5A99A; }
+</style></head>
+<body><div class="wrap">
+  <img class="logo" src="file:///Users/mac/usehatch/frontend/public/hatch-logo.jpg" alt="" />
+  <div class="copy">
+    <div class="eyebrow"><span class="dot"></span><span>Story Aeneid · Live on CDR</span></div>
+    <h1>Sealed alpha. <span class="accent">Public on timer.</span></h1>
+    <p class="sub">Programmable embargoes on Story's Confidential Data Rails. Publishers seal. The chain unseals.</p>
+  </div>
+  <div class="foot">
+    <div class="l"><span>usehatch.xyz</span><span class="sep">·</span><span>@usehatch_</span></div>
+    <div>HATCH</div>
+  </div>
+</div></body></html>

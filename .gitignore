@@ -1,0 +1,119 @@
+# ─────────────────────────── secrets
+# Real env files NEVER ship to git. .env.example files do (they document
+# the schema without secrets) so we explicitly negate them at the bottom.
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
+
+# ─────────────────────────── node / pnpm
+node_modules/
+**/node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# ─────────────────────────── build outputs
+dist/
+build/
+**/dist/
+**/build/
+.next/
+.turbo/
+.vite/
+.svelte-kit/
+**/*.tsbuildinfo
+
+# Frontend specific (Vite)
+frontend/dist/
+frontend/dist-ssr/
+frontend/.vite/
+
+# Backend specific
+backend/dist/
+
+# SDK build output (regenerated via `pnpm --filter @usehatch/sdk build`)
+sdk/dist/
+
+# ─────────────────────────── foundry / contracts
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/lib/forge-std/
+contracts/lib/openzeppelin-contracts/
+
+# ─────────────────────────── Day-0 validation harness state
+# Ephemeral JSON state files written by scripts/section*.mjs +
+# scripts/build*.mjs when re-run. The canonical Aeneid addresses they
+# captured are already pinned in sdk/src/config.ts; the JSONs themselves
+# are regenerable and shouldn't churn git history.
+.build*.json
+.section*.json
+.roundtrip-*.json
+
+# ─────────────────────────── logs / temp
+logs/
+*.log
+*.pid
+tmp/
+.tmp/
+
+# ─────────────────────────── editor / OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*.sw?
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ─────────────────────────── coverage / test
+coverage/
+.nyc_output/
+**/.coverage/
+
+# ─────────────────────────── private/local notes
+# Anything starting with `_` at the repo root is a scratch file (probes,
+# one-off scripts, local notes). Committed ones use explicit names.
+/_*
+
+# Internal working docs — kept on disk for our own reference, not shipped.
+HATCH_DESIGN_SPEC.md
+AGENT_PROGRESS.md
+
+# ─────────────────────────── design-tool exports (downloaded from CC API)
+# The live UI is `frontend/` — fully wired. The directories below are
+# design-source dumps used during ideation; not part of the shipped product.
+**/uploads/
+**/screenshots/
+**/chats/
+design-console/
+design-landing/
+frontend-v1-static/
+
+# Standalone single-file HTML design dumps. The live, modular implementation
+# lives in `frontend/src/design/`.
+/Console.html
+/Landing.html
+**/usehatch/project/Hatch*(standalone).html
+
+# ─────────────────────────── allow-list (negations come last)
+# Explicitly keep example envs — they're the docs for required env keys.
+!**/.env.example
+!.env.example

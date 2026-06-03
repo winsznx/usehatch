@@ -1,0 +1,63 @@
+{
+  "name": "@usehatch/sdk",
+  "version": "0.1.1",
+  "description": "Hatch — programmable embargoes on Story CDR. Typed client wrapping @piplabs/cdr-sdk + @story-protocol/core-sdk.",
+  "license": "MIT",
+  "homepage": "https://github.com/winsznx/usehatch#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/winsznx/usehatch.git",
+    "directory": "sdk"
+  },
+  "bugs": "https://github.com/winsznx/usehatch/issues",
+  "keywords": [
+    "hatch",
+    "story-protocol",
+    "cdr",
+    "confidential-data-rails",
+    "embargo",
+    "encryption",
+    "ip-asset",
+    "license-token",
+    "viem"
+  ],
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./storage": {
+      "import": "./dist/storage.js",
+      "types": "./dist/storage.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p .",
+    "clean": "rm -rf dist"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "@piplabs/cdr-contracts": "0.2.1",
+    "@piplabs/cdr-crypto": "0.2.1",
+    "@piplabs/cdr-sdk": "0.2.1",
+    "@story-protocol/core-sdk": "1.4.4",
+    "viem": "^2.21"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "typescript": "^5.9.3"
+  }
+}

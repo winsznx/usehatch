@@ -1,0 +1,504 @@
+/* ============================================================
+   HATCH — Design System Stylesheet
+   Editorial-warm × terminal-precise. Tokens per spec §3.
+   ============================================================ */
+
+/* ---------- Color tokens ---------- */
+:root {
+  --bg-paper: #FAF7F2;
+  --bg-surface: #FFFFFF;
+  --bg-subtle: #F2EEE7;
+  --bg-overlay: #FFFFFF;
+  --ink: #1A1815;
+  --ink-soft: #5C544A;
+  --ink-muted: #8A8275;
+  --rule: #E8E2D8;
+  --rule-strong: #D4CCBE;
+  --hot: #E04F2C;
+  --hot-soft: #FAE6DC;
+  --hot-ink: #FFFFFF;
+  --saffron: #C28D3A;
+  --verdant: #2D5F4F;
+  --verdant-soft: #DCEDE5;
+  --sealed: #5C544A;
+
+  --r-sharp: 0px;
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-pill: 999px;
+
+  --shadow-xs: 0 1px 2px rgba(26,24,21,0.06);
+  --shadow-sm: 0 2px 8px rgba(26,24,21,0.08);
+  --shadow-reveal: 0 0 24px rgba(224,79,44,0.18);
+
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --maxw: 1200px;
+}
+.dark {
+  --bg-paper: #1A1815;
+  --bg-surface: #232017;
+  --bg-subtle: #14110E;
+  --bg-overlay: #2A2620;
+  --ink: #FAF7F2;
+  --ink-soft: #B5A99A;
+  --ink-muted: #6F6759;
+  --rule: #2F2A22;
+  --rule-strong: #3F3A30;
+  --hot: #E04F2C;
+  --hot-soft: #3D1F14;
+  --hot-ink: #FFFFFF;
+  --saffron: #D9A655;
+  --verdant: #4A8B73;
+  --verdant-soft: #1A2E26;
+  --sealed: #8A8275;
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-sm: 0 2px 12px rgba(0,0,0,0.4);
+}
+
+/* ---------- Reset / base ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+html {
+  scroll-behavior: smooth;
+  /* Offset anchor jumps so the landing's sticky `.header` (56px tall, ~66px
+   * when scrolled+capsule) doesn't cover the target's top edge. Applies to
+   * `#anchor` links, `element.scrollIntoView()`, and Lenis. Console routes
+   * scroll inside `.workspace`, not the document root, so this is harmless
+   * everywhere except where it's needed. */
+  scroll-padding-top: 80px;
+}
+body {
+  background-color: var(--bg-paper);
+  color: var(--ink);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+::selection { background: var(--hot-soft); color: var(--ink); }
+
+/* ---------- Type scale (§3.3) ---------- */
+.display-2xl { font-family: "Newsreader", serif; font-weight: 700; font-size: 64px; line-height: 68px; letter-spacing: -0.025em; }
+.display-xl  { font-family: "Newsreader", serif; font-weight: 700; font-size: 48px; line-height: 52px; letter-spacing: -0.020em; }
+.display-lg  { font-family: "Newsreader", serif; font-weight: 700; font-size: 36px; line-height: 40px; letter-spacing: -0.015em; }
+.display-md  { font-family: "Newsreader", serif; font-weight: 600; font-size: 28px; line-height: 32px; letter-spacing: -0.010em; }
+.heading-lg  { font-family: "Newsreader", serif; font-weight: 600; font-size: 22px; line-height: 28px; }
+.heading-md  { font-family: "IBM Plex Sans", sans-serif; font-weight: 600; font-size: 18px; line-height: 24px; }
+.heading-sm  { font-family: "IBM Plex Sans", sans-serif; font-weight: 600; font-size: 16px; line-height: 22px; }
+.body-lg     { font-family: "IBM Plex Sans", sans-serif; font-weight: 400; font-size: 18px; line-height: 30px; }
+.body-md     { font-family: "IBM Plex Sans", sans-serif; font-weight: 400; font-size: 16px; line-height: 26px; }
+.body-sm     { font-family: "IBM Plex Sans", sans-serif; font-weight: 400; font-size: 14px; line-height: 22px; }
+.body-xs     { font-family: "IBM Plex Sans", sans-serif; font-weight: 400; font-size: 12px; line-height: 18px; }
+.label-md    { font-family: "IBM Plex Sans", sans-serif; font-weight: 500; font-size: 14px; line-height: 20px; }
+.label-sm    { font-family: "IBM Plex Sans", sans-serif; font-weight: 500; font-size: 12px; line-height: 16px; letter-spacing: 0.05em; text-transform: uppercase; }
+.reading-body{ font-family: "Newsreader", serif; font-weight: 400; font-size: 18px; line-height: 32px; }
+.mono-lg     { font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 18px; line-height: 24px; }
+.mono-md     { font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 14px; line-height: 20px; }
+.mono-sm     { font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 12px; line-height: 16px; letter-spacing: 0.05em; text-transform: uppercase; }
+.ink-soft { color: var(--ink-soft); }
+.ink-muted { color: var(--ink-muted); }
+.hot { color: var(--hot); }
+
+/* ---------- Layout helpers ---------- */
+.container { max-width: var(--maxw); margin: 0 auto; padding: 0 32px; width: 100%; }
+.section { padding: 96px 0; }
+.section--subtle { background: var(--bg-subtle); }
+.section--paper { background: var(--bg-paper); }
+.eyebrow { color: var(--ink-soft); display: inline-block; }
+.rule-top { border-top: 1px solid var(--rule); }
+.rule-bottom { border-bottom: 1px solid var(--rule); }
+
+/* scroll reveal */
+.reveal-up { opacity: 0; transform: translateY(16px); transition: opacity 480ms var(--ease), transform 480ms var(--ease); }
+.reveal-up.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal-up { opacity: 1; transform: none; transition: none; }
+  html { scroll-behavior: auto; }
+}
+
+/* ============================================================
+   Header (§5.1)
+   ============================================================ */
+.header {
+  position: sticky; top: 0; z-index: 50;
+  padding: 0;
+  background: color-mix(in srgb, var(--bg-paper) 88%, transparent);
+  backdrop-filter: saturate(1.3) blur(10px);
+  border-bottom: 1px solid var(--rule);
+  transition: background-color 280ms var(--ease), border-color 280ms var(--ease), padding 280ms var(--ease);
+}
+.header-inner {
+  max-width: var(--maxw); margin: 0 auto; height: 56px; padding: 0 32px;
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  border: 1px solid transparent; border-radius: 0;
+  transition: max-width 320ms var(--ease), height 280ms var(--ease), padding 280ms var(--ease),
+    background-color 280ms var(--ease), border-color 280ms var(--ease),
+    border-radius 280ms var(--ease), box-shadow 280ms var(--ease);
+}
+/* Scrolled: header bar detaches into a floating editorial capsule */
+.header.scrolled {
+  background-color: transparent; border-color: transparent; backdrop-filter: none;
+  padding-top: 12px;
+}
+.header.scrolled .header-inner {
+  max-width: 980px; height: 54px; padding: 0 14px 0 22px;
+  background: color-mix(in srgb, var(--bg-surface) 90%, transparent);
+  backdrop-filter: saturate(1.5) blur(14px);
+  border: 1px solid var(--rule); border-radius: var(--r-pill);
+  box-shadow: 0 6px 24px -10px rgba(26,24,21,0.18), 0 1px 2px rgba(26,24,21,0.04);
+}
+.dark .header.scrolled .header-inner { box-shadow: 0 8px 28px -10px rgba(0,0,0,0.5); }
+.header.scrolled .header-nav { gap: 24px; }
+.header.scrolled .nav-divider { opacity: 1; }
+.nav-divider { width: 1px; height: 22px; background: var(--rule); opacity: 0; transition: opacity 280ms var(--ease); }
+.wordmark { display: flex; align-items: center; gap: 8px; }
+.wordmark .egg { font-size: 18px; line-height: 1; }
+.wordmark-text { font-family: "Newsreader", serif; font-weight: 600; font-size: 21px; letter-spacing: -0.01em; color: var(--ink); }
+.header-nav { display: flex; align-items: center; gap: 28px; }
+.nav-link { color: var(--ink-soft); }
+.nav-link:hover { color: var(--ink); }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.icon-btn { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--rule); border-radius: var(--r-sm); background: transparent; color: var(--ink-soft); transition: border-color 160ms var(--ease), background-color 160ms var(--ease); }
+.icon-btn:hover { color: var(--ink); border-color: var(--rule-strong); }
+@media (max-width: 880px) { .header-nav { display: none; } }
+
+/* ============================================================
+   Buttons (§5.13)
+   ============================================================ */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; border-radius: var(--r-sm); font-family: "IBM Plex Sans", sans-serif; font-weight: 500; white-space: nowrap; transition: background-color 180ms var(--ease), border-color 180ms var(--ease); }
+.btn svg { flex: none; }
+.btn--primary { background: var(--hot); color: var(--hot-ink); border-color: var(--hot); }
+.btn--primary:hover { background: color-mix(in srgb, var(--hot) 88%, black); }
+.btn--outline { background: transparent; color: var(--ink); border-color: var(--rule-strong); }
+.btn--outline:hover { border-color: var(--ink); }
+.btn--ghost { background: transparent; color: var(--ink-soft); }
+.btn--ghost:hover { color: var(--ink); background: var(--bg-subtle); }
+.btn--link { background: transparent; color: var(--ink); border: 0; padding: 0 !important; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--rule-strong); }
+.btn--link { transition: text-decoration-color 180ms var(--ease); }
+.btn--link:hover { color: var(--hot); text-decoration-color: var(--hot); }
+.btn--sm { height: 32px; padding: 0 12px; font-size: 13px; }
+.btn--md { height: 40px; padding: 0 16px; font-size: 14px; }
+.btn--lg { height: 48px; padding: 0 22px; font-size: 15px; }
+.btn--xl { height: 56px; padding: 0 28px; font-size: 14px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }
+
+/* connect wallet */
+.btn-connect { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 13px; border: 1px solid var(--rule-strong); border-radius: var(--r-sm); background: transparent; color: var(--ink); font-size: 14px; font-weight: 500; white-space: nowrap; transition: border-color 160ms var(--ease), background-color 160ms var(--ease); }
+.btn-connect:hover { border-color: var(--ink); }
+.btn-connect.connected { background: var(--bg-subtle); }
+.wallet-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--verdant); }
+
+/* ============================================================
+   StatusPill (§5.3)
+   ============================================================ */
+.status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: var(--r-pill); font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 11px; line-height: 1; letter-spacing: 0.06em; text-transform: uppercase; }
+.status-pill svg { width: 12px; height: 12px; }
+.pill-sealed { background: var(--bg-subtle); color: var(--sealed); }
+.pill-active { background: var(--hot-soft); color: var(--hot); }
+.pill-revealed { background: var(--verdant-soft); color: var(--verdant); }
+.pill-resolved { background: var(--verdant-soft); color: var(--verdant); }
+.pill-disputed { background: color-mix(in srgb, var(--saffron) 16%, transparent); color: var(--saffron); }
+
+/* ============================================================
+   CountdownTimer (§5.4)
+   ============================================================ */
+.countdown { font-family: "IBM Plex Mono", monospace; font-weight: 500; color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+.countdown--sm { font-size: 12px; }
+.countdown--md { font-size: 14px; }
+.countdown--lg { font-size: 18px; }
+.countdown.is-hot { color: var(--hot); }
+
+/* ============================================================
+   TrackRecordBadge (§5.5)
+   ============================================================ */
+.track-badge { position: relative; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-family: "IBM Plex Mono", monospace; font-weight: 500; }
+.track-dot { width: 6px; height: 6px; border-radius: 999px; }
+.track-acc { color: var(--ink); }
+.track-sep, .track-count { color: var(--ink-soft); }
+.track-tip { position: absolute; bottom: calc(100% + 8px); right: 0; width: 230px; background: var(--bg-overlay); border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 10px 12px; box-shadow: var(--shadow-sm); opacity: 0; pointer-events: none; transform: translateY(4px); transition: all 160ms var(--ease); z-index: 20; text-transform: none; letter-spacing: 0; }
+.track-badge:hover .track-tip { opacity: 1; transform: none; }
+
+/* ============================================================
+   WaxSeal (§5.16)
+   ============================================================ */
+.wax { display: block; filter: drop-shadow(0 0.5px 0.5px rgba(0,0,0,0.18)); }
+
+/* ============================================================
+   HatchCard (§5.2)
+   ============================================================ */
+.hatch-card { position: relative; background: var(--bg-surface); border: 1px solid var(--rule); border-radius: var(--r-md); padding: 24px; transition: border-color 200ms var(--ease), transform 200ms var(--ease); }
+.hatch-card:hover { border-color: var(--rule-strong); transform: translateY(-1px); }
+.card-seal { position: absolute; top: 18px; right: 18px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: 34px; }
+.card-pub { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.avatar { width: 24px; height: 24px; border-radius: var(--r-pill); flex: none; display: grid; place-items: center; font-family: "Newsreader", serif; font-weight: 600; font-size: 12px; color: var(--hot-ink); }
+.card-handle { color: var(--ink); font-weight: 500; }
+.verified-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--saffron); flex: none; }
+.card-title { margin: 14px 0 0; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-preview { margin: 12px 0 0; color: var(--ink-soft); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
+.card-meta { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--ink-soft); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.card-meta > span { white-space: nowrap; }
+.meta-mono { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--ink); }
+.outcome-badge { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; padding: 5px 10px; border-radius: var(--r-sm); white-space: nowrap; }
+.outcome-hit { background: var(--verdant-soft); color: var(--verdant); }
+.outcome-partial { background: var(--bg-subtle); color: var(--ink-soft); }
+.outcome-miss { background: color-mix(in srgb, var(--hot) 12%, transparent); color: var(--hot); }
+
+/* ============================================================
+   TrustStrip (§5.14)
+   ============================================================ */
+.trust-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: var(--ink-soft); }
+.trust-strip a { color: var(--ink-soft); display: inline-flex; align-items: center; gap: 4px; }
+.trust-strip a:hover { color: var(--hot); }
+.trust-sep { color: var(--rule-strong); }
+
+/* ============================================================
+   MetricStrip (§5.8)
+   ============================================================ */
+.metric-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; }
+.metric { display: flex; flex-direction: column; gap: 6px; }
+.metric-value { font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 36px; line-height: 40px; color: var(--ink); letter-spacing: -0.01em; }
+.metric-label { color: var(--ink-soft); }
+@media (max-width: 720px) { .metric-strip { grid-template-columns: repeat(2, 1fr); gap: 28px; } }
+
+/* ============================================================
+   Footer (§6.11)
+   ============================================================ */
+.footer { background: var(--bg-paper); border-top: 1px solid var(--rule); padding: 48px 0 40px; }
+.footer-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1.2fr 0.9fr; gap: 40px; }
+.footer-col-h { color: var(--ink-soft); margin: 0 0 16px; }
+.footer-links { display: flex; flex-direction: column; gap: 11px; }
+.footer-links a { color: var(--ink); }
+.footer-links a:hover { color: var(--saffron); }
+.footer-brand-tag { margin-top: 14px; color: var(--ink-soft); }
+.footer-trust { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--rule); display: flex; justify-content: center; text-align: center; }
+@media (max-width: 1000px) { .footer-grid { grid-template-columns: 1fr 1fr 1fr; gap: 32px; } }
+@media (max-width: 700px)  { .footer-grid { grid-template-columns: 1fr 1fr; gap: 28px; } }
+@media (max-width: 480px)  { .footer-grid { grid-template-columns: 1fr; } }
+
+/* Brand mark — replaces the previous 🥚 emoji span in the wordmark.
+   Sized to sit on the same baseline as the wordmark text (22px). */
+.egg-mark { display: inline-block; width: 22px; height: 22px; border-radius: 4px; object-fit: cover; vertical-align: middle; }
+
+/* ============================================================
+   Footer wordmark — big serif HATCH, edge-to-edge.
+   Quiet, monumental. The two H's carry a faint gold seam that
+   echoes the logo's egg-crack motif without shouting.
+   ============================================================ */
+.footer-wordmark-wrap {
+  margin-top: 48px;
+  padding: 24px 0 0;
+  border-top: 1px solid var(--rule);
+  overflow: hidden;
+  width: 100%;
+}
+.footer-wordmark {
+  font-family: "Newsreader", serif;
+  font-weight: 700;
+  font-size: clamp(72px, 22vw, 280px);
+  line-height: 0.9;
+  letter-spacing: -0.045em;
+  text-align: center;
+  color: var(--ink);
+  white-space: nowrap;
+  user-select: none;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.02em;
+  padding: 0 24px;
+}
+.footer-wordmark .fw-letter,
+.footer-wordmark .fw-h {
+  display: inline-block;
+  line-height: 1;
+}
+/* The two H's carry the seam — a thin gold gradient fill running through
+ * the middle of the glyph, echoing the cracked-egg logo. Falls back to a
+ * solid ink color on browsers without background-clip support. */
+.footer-wordmark .fw-h {
+  background: linear-gradient(
+    180deg,
+    var(--ink) 0%,
+    var(--ink) 38%,
+    color-mix(in srgb, var(--hot) 72%, var(--ink)) 49%,
+    color-mix(in srgb, var(--hot) 90%, transparent) 50%,
+    color-mix(in srgb, var(--hot) 72%, var(--ink)) 51%,
+    var(--ink) 62%,
+    var(--ink) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+/* Mobile: still bleed edge-to-edge, no horizontal scroll, sits on its own line. */
+@media (max-width: 600px) {
+  .footer-wordmark-wrap { margin-top: 36px; padding-top: 18px; }
+  .footer-wordmark { font-size: clamp(56px, 24vw, 130px); padding: 0 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .footer-wordmark .fw-h { background: none; color: var(--ink); -webkit-text-fill-color: currentColor; }
+}
+
+/* ============================================================
+   Responsive type
+   ============================================================ */
+@media (max-width: 900px) {
+  .display-2xl { font-size: 46px; line-height: 50px; }
+  .display-xl { font-size: 36px; line-height: 40px; }
+  .display-lg { font-size: 30px; line-height: 34px; }
+  .section { padding: 72px 0; }
+  .container { padding: 0 20px; }
+}
+@media (max-width: 560px) {
+  .display-2xl { font-size: 38px; line-height: 42px; }
+  .display-xl { font-size: 30px; line-height: 34px; }
+  .section { padding: 64px 0; }
+}
+
+/* ============================================================
+   HERO (§6.1)
+   ============================================================ */
+.hero { border-bottom: 1px solid var(--rule); padding: 80px 0 88px; }
+.hero-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 64px; align-items: center; }
+.hero-eyebrow { color: var(--ink-soft); }
+.hero-headline { margin: 18px 0 0; max-width: 600px; text-wrap: balance; }
+.hero-sub { margin: 22px 0 0; max-width: 540px; color: var(--ink-soft); }
+.hero-ctas { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
+.hero-stat { margin-top: 26px; color: var(--ink-soft); }
+.hero-stack { position: relative; min-height: 320px; }
+.hero-stack .back-card { position: absolute; top: 16px; left: 24px; right: -24px; transform: rotate(2deg); opacity: 0.6; box-shadow: var(--shadow-sm); }
+.hero-stack .front-card { position: relative; z-index: 2; }
+@media (max-width: 900px) {
+  .hero-grid { grid-template-columns: 1fr; gap: 40px; }
+  .hero-stack { display: none; }
+}
+
+/* ============================================================
+   SOCIAL PROOF (§6.2)
+   ============================================================ */
+.proof { padding: 64px 0; }
+.proof-label { text-align: center; color: var(--ink-soft); }
+.proof-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 28px; margin: 24px 0 48px; }
+.proof-pub { display: flex; align-items: center; gap: 8px; }
+.proof-pub .label-md { color: var(--ink); }
+
+/* ============================================================
+   HOW IT WORKS (§6.3) — step cards
+   ============================================================ */
+.section-head { text-align: center; max-width: 640px; margin: 0 auto 56px; }
+.section-head .display-xl { margin: 0; }
+.section-head p { margin: 18px auto 0; color: var(--ink-soft); }
+.steps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.step-card { background: var(--bg-surface); border: 1px solid var(--rule); border-radius: var(--r-md); padding: 28px; display: flex; flex-direction: column; gap: 12px; }
+.step-icon { width: 44px; height: 44px; border-radius: var(--r-sm); background: var(--hot-soft); color: var(--hot); display: grid; place-items: center; }
+.step-eyebrow { color: var(--ink-soft); }
+.step-title { margin: 0; color: var(--ink); }
+.step-body { color: var(--ink-soft); margin: 0; flex: 1; }
+.step-trust { color: var(--ink-muted); margin-top: 8px; }
+@media (max-width: 860px) { .steps-grid { grid-template-columns: 1fr; } }
+
+/* ============================================================
+   WHY HATCH (§6.4) — 2x2 feature cards
+   ============================================================ */
+.features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.feature-card { background: var(--bg-surface); border: 1px solid var(--rule); border-radius: var(--r-md); padding: 32px; transition: border-color 200ms var(--ease), transform 200ms var(--ease); }
+.feature-card:hover { border-color: var(--rule-strong); transform: translateY(-2px); }
+.feature-icon { width: 44px; height: 44px; border-radius: var(--r-sm); background: var(--hot-soft); color: var(--hot); display: grid; place-items: center; margin-bottom: 18px; }
+.feature-title { margin: 0 0 10px; color: var(--ink); }
+.feature-body { margin: 0; color: var(--ink-soft); }
+@media (max-width: 760px) { .features-grid { grid-template-columns: 1fr; } }
+
+/* ============================================================
+   SPLIT SECTIONS (§6.5, 6.6)
+   ============================================================ */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+.split--reverse .split-visual { order: -1; }
+.split-eyebrow { color: var(--ink-soft); }
+.split-head { margin: 16px 0 0; }
+.split-sub { margin: 20px 0 0; max-width: 540px; color: var(--ink-soft); }
+.split-bullets { list-style: none; padding: 0; margin: 28px 0 0; display: flex; flex-direction: column; gap: 18px; }
+.split-bullets li { display: flex; flex-direction: column; gap: 3px; }
+.bullet-label { color: var(--ink); }
+.bullet-desc { color: var(--ink-soft); }
+.split-cta { margin-top: 32px; }
+@media (max-width: 900px) {
+  .split { grid-template-columns: 1fr; gap: 40px; }
+  .split--reverse .split-visual { order: 0; }
+}
+
+/* mock composer (pricing step) */
+.mock-panel { background: var(--bg-surface); border: 1px solid var(--rule); border-radius: var(--r-md); padding: 24px; }
+.mock-stepper { display: flex; gap: 8px; color: var(--ink-muted); margin-bottom: 20px; flex-wrap: wrap; }
+.mock-stepper .on { color: var(--hot); }
+.mock-field { margin-bottom: 18px; }
+.mock-field > label { display: block; color: var(--ink-soft); margin-bottom: 7px; }
+.mock-input { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 44px; padding: 0 14px; border: 1px solid var(--rule-strong); border-radius: var(--r-sm); background: var(--bg-paper); color: var(--ink); font-family: "IBM Plex Mono", monospace; font-size: 13px; white-space: nowrap; overflow: hidden; }
+.mock-input > span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.mock-input .unit { color: var(--ink-muted); flex: none; }
+.mock-input svg { flex: none; color: var(--ink-muted); }
+.mock-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+/* paywall mock (§5.7) */
+.paywall { background: var(--bg-surface); border: 1px solid var(--rule); border-radius: var(--r-md); padding: 36px 28px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.paywall .countdown { color: var(--hot); }
+.paywall-title { margin: 0; color: var(--ink); }
+.paywall-ctas { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 360px; margin-top: 4px; }
+.paywall-ctas .btn { width: 100%; }
+.paywall-note { color: var(--ink-soft); margin: 0; }
+.paywall-note a { color: var(--hot); }
+
+/* ============================================================
+   LIVE FEED PREVIEW (§6.7)
+   ============================================================ */
+.live-feed-list { display: flex; flex-direction: column; gap: 24px; max-width: 1080px; margin: 0 auto; }
+.live-feed-foot { display: flex; justify-content: center; margin-top: 40px; }
+
+/* ============================================================
+   TRUST (§6.8) + code blocks + address pills
+   ============================================================ */
+.trust-wrap { max-width: 720px; margin: 0 auto; }
+.trust-two { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 44px; }
+.trust-col h3 { margin: 0 0 12px; color: var(--ink); }
+.trust-col p { margin: 0 0 16px; color: var(--ink-soft); }
+.code-block { background: var(--bg-subtle); border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 16px; font-family: "IBM Plex Mono", monospace; font-size: 13px; line-height: 20px; color: var(--ink); white-space: pre-wrap; overflow-x: auto; }
+.addr-pills { display: flex; flex-direction: column; gap: 10px; }
+.addr-pill { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--bg-subtle); border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 10px 12px; font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--ink); transition: border-color 160ms var(--ease); }
+.addr-pill:hover { border-color: var(--rule-strong); }
+.addr-pill .copy { color: var(--ink-muted); display: inline-flex; }
+.addr-pill:hover .copy { color: var(--ink-soft); }
+@media (max-width: 760px) { .trust-two { grid-template-columns: 1fr; gap: 28px; } }
+
+/* ============================================================
+   FAQ (§6.9) accordion
+   ============================================================ */
+.faq-wrap { max-width: 720px; margin: 0 auto; border-top: 1px solid var(--rule); }
+.faq-item { border-bottom: 1px solid var(--rule); }
+.faq-q { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; background: transparent; border: 0; padding: 22px 4px; text-align: left; color: var(--ink); }
+.faq-q .chev { color: var(--ink-soft); transition: transform 240ms var(--ease); flex: none; }
+.faq-item.open .chev { transform: rotate(180deg); }
+.faq-a { overflow: hidden; max-height: 0; transition: max-height 280ms var(--ease); }
+.faq-item.open .faq-a { max-height: 280px; }
+.faq-a p { margin: 0; padding: 0 4px 24px; color: var(--ink-soft); max-width: 620px; }
+
+/* ============================================================
+   FOOTER CTA (§6.10)
+   ============================================================ */
+.footer-cta { text-align: center; }
+.footer-cta .display-xl { margin: 16px 0 0; }
+.footer-cta p { margin: 18px auto 0; color: var(--ink-soft); max-width: 480px; }
+.footer-cta-btns { display: flex; gap: 12px; justify-content: center; margin-top: 32px; flex-wrap: wrap; }
+
+/* ============================================================
+   Motion: wax pulse, shimmer
+   ============================================================ */
+@keyframes waxPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+.wax-pulse { animation: waxPulse 2600ms var(--ease) infinite; }
+@media (prefers-reduced-motion: reduce) { .wax-pulse { animation: none; } }
+.skeleton { background: var(--bg-subtle); border-radius: var(--r-sm); position: relative; overflow: hidden; }
+.skeleton::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--bg-surface) 65%, transparent), transparent); transform: translateX(-100%); animation: shimmer 1600ms infinite; }
+@keyframes shimmer { 100% { transform: translateX(100%); } }

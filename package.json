@@ -1,0 +1,25 @@
+{
+  "name": "hatch",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hatch — programmable embargoes on Story Protocol's Confidential Data Rails. Sealed alpha, public on timer, on-chain track records.",
+  "license": "MIT",
+  "homepage": "https://usehatch.xyz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/winsznx/usehatch.git"
+  },
+  "scripts": {
+    "smoke": "node scripts/section1-smoke.mjs"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "5.1.0",
+    "@piplabs/cdr-contracts": "0.2.1",
+    "@piplabs/cdr-crypto": "0.2.1",
+    "@piplabs/cdr-sdk": "0.2.1",
+    "@story-protocol/core-sdk": "1.4.4",
+    "helia": "^5.0.0",
+    "viem": "^2.21.0"
+  }
+}

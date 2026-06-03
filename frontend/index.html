@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#FAF7F2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1A1815" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
+
+    <!-- Canonical + identity ============================================= -->
+    <title>Hatch — Sealed alpha. Public on timer.</title>
+    <meta name="description" content="A programmable embargo platform on Story Protocol. Publishers seal predictions, research, and scoops. Subscribers pay for early access. Hatches auto-unseal on schedule — with on-chain track records you can't fake." />
+    <link rel="canonical" href="https://usehatch.xyz/" />
+    <meta name="application-name" content="Hatch" />
+    <meta name="apple-mobile-web-app-title" content="Hatch" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Icons / favicons ================================================= -->
+    <link rel="icon" type="image/jpeg" href="/hatch-logo.jpg" />
+    <link rel="apple-touch-icon" href="/hatch-logo.jpg" />
+
+    <!-- Open Graph + Twitter Cards. Practices that matter for 2025+:
+         - Absolute HTTPS URL on og:image (relative URLs silently fail).
+         - 1200×630 (1.91:1) JPEG. Under 1 MB for crawler reliability.
+         - Cache-bust query (?v=N) when the image changes — Telegram +
+           Discord cache OG images for days to weeks.
+         - twitter:card="summary_large_image" makes X render the 1200×630
+           wide card inline; without it X falls back to a small square.
+         - Validate before broad sharing:
+             FB Sharing Debugger      developers.facebook.com/tools/debug/
+             LinkedIn Post Inspector  www.linkedin.com/post-inspector/
+             opengraph.xyz            (multi-platform preview)
+             Telegram                 send to a private chat
+         - Per-route OG images need server-rendered HTML per URL — this is
+           an SPA so all routes share these tags. Upgrade path: Vercel
+           Functions /api/og?uuid=X with @vercel/og when needed. -->
+    <meta property="og:site_name" content="Hatch" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://usehatch.xyz/" />
+    <meta property="og:title" content="Hatch — Sealed alpha. Public on timer." />
+    <meta property="og:description" content="Programmable embargoes on Story CDR. Publishers seal predictions inside encrypted vaults with a public reveal timer. Auto-unseals on schedule. On-chain track records you can't fake." />
+    <meta property="og:image" content="https://usehatch.xyz/og-image.jpg?v=1" />
+    <meta property="og:image:secure_url" content="https://usehatch.xyz/og-image.jpg?v=1" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Hatch — programmable embargoes on Story CDR" />
+
+    <!-- Twitter / X Cards. `summary_large_image` is the 1200×630 wide card
+         X renders inline in the timeline. Without `twitter:image` X falls
+         back to og:image but adding it explicit guards against any future
+         metadata-policy drift. -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@usehatch_" />
+    <meta name="twitter:creator" content="@usehatch_" />
+    <meta name="twitter:url" content="https://usehatch.xyz/" />
+    <meta name="twitter:title" content="Hatch — Sealed alpha. Public on timer." />
+    <meta name="twitter:description" content="Programmable embargoes on Story CDR. Publishers seal predictions inside encrypted vaults with a public reveal timer. Auto-unseals on schedule. On-chain track records you can't fake." />
+    <meta name="twitter:image" content="https://usehatch.xyz/og-image.jpg?v=1" />
+    <meta name="twitter:image:alt" content="Hatch — programmable embargoes on Story CDR" />
+
+    <!-- Fonts ============================================================ -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

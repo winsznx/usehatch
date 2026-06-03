@@ -1,0 +1,132 @@
+/* Motion system overrides — applied last so they win against the design's
+ * inherited prototype styles. These are spatial corrections, not visual
+ * rewrites: the design language stays exactly as it was. */
+
+/* Lenis requires the html element to be the scroll container. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+html.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+html.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+html.lenis.lenis-stopped body {
+  overflow: hidden;
+}
+
+/* The design's old prototype set fixed-ish backgrounds on .lp-shell / .console
+ * — disable them so the Atmosphere layer is the only background. */
+.lp-shell,
+.console {
+  background: transparent !important;
+}
+
+/* The design's Atmosphere component (decorative grain inside landing) — keep
+ * it; the new global Atmosphere lives behind it as a depth layer. */
+
+/* Increase the spatial quality everywhere typography lands. Restraint reads
+ * as trust; we push tracking out a hair on the largest sizes and let the
+ * existing design tokens carry the rest. */
+.lp-d1, .lp-d2, .hatch-d1, .hatch-d2 {
+  letter-spacing: -0.024em;
+}
+
+/* GPU-acceleration hints for elements the motion system animates. */
+.lp-hero-orb,
+.hatch-card,
+.hatch-orb-anchor {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+}
+
+/* Subtle press affordance on every Button — uses the existing class. */
+.btn:active {
+  transform: translateY(1px) scale(0.995);
+}
+.btn,
+.hatch-card,
+.btn-connect,
+.icon-btn {
+  transition: transform 240ms cubic-bezier(0.16, 0.62, 0.23, 0.99),
+              box-shadow 240ms cubic-bezier(0.16, 0.62, 0.23, 0.99),
+              color 200ms ease, background-color 200ms ease, border-color 200ms ease;
+}
+
+/* HatchCard hover — give it a barely-perceptible lift. The design already
+ * implies clickability via cursor; this seals the contract. */
+.hatch-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 40px -28px rgba(26, 24, 21, 0.32);
+}
+
+/* The anchor box itself is invisible — only the OrbStage renders the orb.
+ * The anchor preserves the design's intended box for layout/measurement. */
+[data-orb-anchor] {
+  background: transparent !important;
+}
+/* Console workspace must be a flex column so AnimatePresence motion.div can
+ * fill remaining vertical space and clip-path computes against full height. */
+.console .workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* HatchOrb overlay — the countdown sits over the orb's center; it's free of
+ * the orb's own SVG and inherits the design's lp-core-time mono treatment. */
+.hatch-orb-anchor .lp-orb-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 2;
+}
+.hatch-orb-anchor .lp-orb-overlay .lp-core-time {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: clamp(1.1rem, 1.8vw, 1.6rem);
+  letter-spacing: 0.06em;
+  color: rgba(250, 247, 242, 0.92);
+  text-shadow: 0 0 18px rgba(0, 0, 0, 0.45), 0 0 2px rgba(0, 0, 0, 0.6);
+  user-select: none;
+}
+
+/* Chapter-driven Landing spacing — let typography breathe.
+ * Chapters size to their content. GSAP ScrollTrigger pins whatever height
+ * the trigger resolves to and pinSpacing inserts the scroll runway. This
+ * keeps short chapters (e.g. Manifesto's two lines) from being padded out
+ * to a full viewport of dead space above and below the headline. */
+.lp-shell > main > section {
+  position: relative;
+  scroll-margin-top: 88px;
+}
+
+/* The Hero claims the opening viewport in full. */
+.lp-hero {
+  padding-top: clamp(64px, 10vh, 140px);
+  padding-bottom: clamp(64px, 10vh, 120px);
+}
+
+/* Chapter-internal: breathing room around the inner content. Tight enough
+ * that short chapters don't feel like void, generous enough that the
+ * typography still reads as a held cinematic frame. */
+.lp-manifesto,
+.lp-lifecycle,
+.lp-proof,
+.lp-trust,
+.lp-closing {
+  padding-block: clamp(64px, 8vh, 128px);
+}
+
+/* Reduce motion respectfully. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

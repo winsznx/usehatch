@@ -1,0 +1,99 @@
+/* Wagmi v2 + RainbowKit configuration for Story Aeneid testnet (chain 1315).
+ *
+ * Aeneid's eth_feeHistory-based estimator returns gas caps roughly 10,000x
+ * higher than what the chain actually accepts. We override the EIP-1559 fee
+ * fields at the chain level so every write call defaults to sane caps without
+ * each caller having to remember. Existing SDK paths can still override
+ * per-transaction. */
+import { http } from "viem";
+import type { Chain } from "viem";
+import { createConfig } from "wagmi";
+import { injected, metaMask, walletConnect } from "wagmi/connectors";
+import { darkTheme, lightTheme } from "@rainbow-me/rainbowkit";
+import type { Theme } from "@rainbow-me/rainbowkit";
+
+import { config as appConfig } from "./config.js";
+
+export const AENEID_MAX_FEE_PER_GAS = 1_000_000_000n;
+export const AENEID_MAX_PRIORITY_FEE_PER_GAS = 100_000_000n;
+
+export const storyAeneid: Chain = {
+  id: 1315,
+  name: "Story Aeneid",
+  nativeCurrency: { name: "IP", symbol: "IP", decimals: 18 },
+  rpcUrls: {
+    default: { http: [appConfig.rpcUrl] },
+    public: { http: ["https://aeneid.storyrpc.io"] },
+  },
+  blockExplorers: {
+    default: { name: "Storyscan", url: "https://aeneid.storyscan.io" },
+  },
+  testnet: true,
+  fees: {
+    estimateFeesPerGas: async () => ({
+      maxFeePerGas: AENEID_MAX_FEE_PER_GAS,
+      maxPriorityFeePerGas: AENEID_MAX_PRIORITY_FEE_PER_GAS,
+    }),
+  },
+};
+
+const walletConnectProjectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? "";
+
+export const wagmiConfig = createConfig({
+  chains: [storyAeneid],
+  connectors: [
+    injected({ shimDisconnect: true }),
+    metaMask(),
+    ...(walletConnectProjectId ? [walletConnect({ projectId: walletConnectProjectId, showQrModal: true })] : []),
+  ],
+  transports: { [storyAeneid.id]: http(appConfig.rpcUrl) },
+  ssr: false,
+});
+
+declare module "wagmi" {
+  interface Register {
+    config: typeof wagmiConfig;
+  }
+}
+
+/* Hatch design tokens → RainbowKit theme. Light + dark variants match the
+ * spec's `--bg-paper`, `--ink`, `--hot` palette so the connect modal feels
+ * like part of the product, not the default RainbowKit purple. */
+const HATCH_TOKENS = {
+  light: { paper: "#FAF7F2", surface: "#FFFFFF", subtle: "#F2EEE7", ink: "#1A1815", inkSoft: "#5C544A", rule: "#E8E2D8" },
+  dark:  { paper: "#1A1815", surface: "#232017", subtle: "#14110E", ink: "#FAF7F2", inkSoft: "#B5A99A", rule: "#2F2A22" },
+  hot: "#E04F2C",
+};
+
+function hatchTheme(mode: "light" | "dark"): Theme {
+  const base = mode === "light" ? lightTheme({ accentColor: HATCH_TOKENS.hot, accentColorForeground: "#FFFFFF", borderRadius: "small", overlayBlur: "small" })
+                                : darkTheme({ accentColor: HATCH_TOKENS.hot, accentColorForeground: "#FFFFFF", borderRadius: "small", overlayBlur: "small" });
+  const t = HATCH_TOKENS[mode];
+  return {
+    ...base,
+    colors: {
+      ...base.colors,
+      modalBackground: t.surface,
+      modalBorder: t.rule,
+      modalText: t.ink,
+      modalTextSecondary: t.inkSoft,
+      modalBackdrop: mode === "light" ? "rgba(26,24,21,0.32)" : "rgba(0,0,0,0.6)",
+      generalBorder: t.rule,
+      menuItemBackground: t.subtle,
+      profileAction: t.subtle,
+      profileActionHover: t.rule,
+      profileForeground: t.surface,
+      closeButton: t.inkSoft,
+      closeButtonBackground: t.subtle,
+      connectButtonBackground: t.surface,
+      connectButtonInnerBackground: t.subtle,
+      connectButtonText: t.ink,
+      connectButtonTextError: HATCH_TOKENS.hot,
+    },
+    fonts: { body: '"IBM Plex Sans", system-ui, sans-serif' },
+    radii: { ...base.radii, actionButton: "4px", connectButton: "4px", menuButton: "4px", modal: "8px", modalMobile: "8px" },
+  };
+}
+
+export const hatchLightTheme = hatchTheme("light");
+export const hatchDarkTheme = hatchTheme("dark");
