@@ -36,16 +36,19 @@ ENV VITE_BLUESKY_HANDLE=$VITE_BLUESKY_HANDLE
 
 RUN cd frontend && pnpm build
 
-# Runtime. Serve the dist/ via vite preview (fine for low traffic; swap to
-# nginx for high traffic by adding a separate runner stage based on nginx).
+# Runtime. sirv is a production-grade static server: brotli + gzip on the wire,
+# `cache-control: max-age=31536000, immutable` on hashed asset paths, and an
+# SPA fallback to /index.html so client-side routes work. Replaces the dev
+# `vite preview` which served 4 MB uncompressed with no cache headers.
 FROM node:22-bookworm-slim AS runner
 ENV NODE_ENV=production
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 WORKDIR /app
 
-COPY --from=builder /app/sdk ./sdk
-COPY --from=builder /app/frontend ./frontend
+COPY --from=builder /app/frontend/dist ./dist
+COPY --from=builder /app/frontend/node_modules/sirv-cli ./node_modules/sirv-cli
+COPY --from=builder /app/frontend/node_modules/.pnpm ./node_modules/.pnpm
+COPY --from=builder /app/frontend/node_modules/.bin/sirv ./node_modules/.bin/sirv
 
 EXPOSE 5173
-WORKDIR /app/frontend
-CMD ["sh", "-c", "pnpm exec vite preview --port ${PORT:-5173} --host 0.0.0.0"]
+CMD ["sh", "-c", "./node_modules/.bin/sirv dist --host 0.0.0.0 --port ${PORT:-5173} --single --etag --gzip --brotli --immutable --quiet"]

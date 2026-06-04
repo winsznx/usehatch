@@ -19,7 +19,11 @@ import { WebSocketProvider } from "./lib/ws.js";
 
 import { App as Landing } from "./design/app.jsx";
 import { ConsoleApp } from "./design/console_mount.jsx";
-import { DocsApp } from "./design/docs_app.jsx";
+
+// DocsApp is lazy-loaded so the markdown + syntax-highlighting libs (react-markdown,
+// remark-gfm, rehype-highlight, rehype-slug) do not weigh down the landing/console
+// bundles. The /docs route is rarely the first page a visitor lands on.
+const DocsApp = React.lazy(() => import("./design/docs_app.jsx").then((m) => ({ default: m.DocsApp })));
 
 // Expose motion primitives to the (untyped) design JSX layer.
 (globalThis as { HatchArtifact?: unknown; HatchOrb?: unknown; Chapter?: unknown; Stage?: unknown }).HatchArtifact = HatchArtifact;
@@ -60,8 +64,8 @@ function AppRouter() {
             <Route path="/" element={<Landing />} />
             <Route path="/console" element={<ConsoleApp />} />
             <Route path="/console/*" element={<ConsoleApp />} />
-            <Route path="/docs" element={<DocsApp />} />
-            <Route path="/docs/*" element={<DocsApp />} />
+            <Route path="/docs" element={<React.Suspense fallback={null}><DocsApp /></React.Suspense>} />
+            <Route path="/docs/*" element={<React.Suspense fallback={null}><DocsApp /></React.Suspense>} />
             <Route path="*" element={<Landing />} />
           </Routes>
         </DevErrorBoundary>
