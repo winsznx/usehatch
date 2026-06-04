@@ -11,12 +11,50 @@
  * smart wallet (paymaster-sponsored, no gas paid by user). */
 import { useMemo } from "react";
 import { useAccount, useChainId, usePublicClient, useWalletClient } from "wagmi";
-import { custom, type Address, type Hash, type Hex } from "viem";
+import { custom, type Address, type Hash, type Hex, type PublicClient } from "viem";
 import { StoryClient, type StoryConfig } from "@story-protocol/core-sdk";
 import { AENEID, HATCH, type HatchConfig, type TxExecutor } from "@usehatch/sdk";
 import { useSmartWalletsSafe } from "./privy-bridge.js";
 
 export const STORY_AENEID_ID = 1315;
+
+/* Story SDK calls `simulateContract → writeContract` without pre-estimating gas,
+ * delegating to the wallet. MetaMask normally estimates, but Privy embedded
+ * wallets (and some custom connectors on Aeneid) forward `eth_sendTransaction`
+ * with `gas: 0`, which the node rejects with "intrinsic gas too low".
+ *
+ * Wrap the underlying provider so any `eth_sendTransaction` that arrives without
+ * a gas field gets one estimated via the public RPC, with a 20% buffer. */
+type JsonRpcRequest = { method: string; params?: readonly unknown[] };
+type JsonRpcProvider = { request: (args: JsonRpcRequest) => Promise<unknown> };
+function withGasEstimation(provider: JsonRpcProvider, publicClient: PublicClient): JsonRpcProvider {
+  return {
+    async request(args: JsonRpcRequest): Promise<unknown> {
+      if (args.method !== "eth_sendTransaction" || !Array.isArray(args.params) || !args.params[0]) {
+        return provider.request(args);
+      }
+      const tx = { ...(args.params[0] as Record<string, unknown>) };
+      const currentGas = typeof tx.gas === "string" ? tx.gas : undefined;
+      if (!currentGas || currentGas === "0x" || currentGas === "0x0") {
+        try {
+          const estimated = await publicClient.estimateGas({
+            account: tx.from as `0x${string}`,
+            to: tx.to as `0x${string}` | undefined,
+            data: tx.data as `0x${string}` | undefined,
+            value: typeof tx.value === "string" ? BigInt(tx.value) : undefined,
+          });
+          tx.gas = `0x${((estimated * 120n) / 100n).toString(16)}`;
+        } catch {
+          // Aeneid estimateGas occasionally fails on first-touch IPAs; fall back
+          // to a generous limit so the demo flow doesn't dead-end on the heuristic.
+          tx.gas = `0x${(3_000_000n).toString(16)}`;
+        }
+        return provider.request({ method: "eth_sendTransaction", params: [tx] });
+      }
+      return provider.request(args);
+    },
+  };
+}
 
 export interface StoryWiring {
   storyClient: StoryClient;
@@ -41,7 +79,8 @@ export function useStoryWiring(): StoryWiring | null {
     if (!isConnected || !address || chainId !== STORY_AENEID_ID) return null;
     if (!publicClient || !walletClient) return null;
 
-    const transport = custom(walletClient.transport);
+    const wrappedProvider = withGasEstimation(walletClient.transport as unknown as JsonRpcProvider, publicClient);
+    const transport = custom(wrappedProvider);
     const storyConfig: StoryConfig = {
       account: { address, type: "json-rpc" },
       transport,
