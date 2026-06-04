@@ -13,13 +13,16 @@ const aeneid = { id: 1315, name: "Story Aeneid", nativeCurrency: { name: "IP", s
 export const publicClient = createPublicClient({ chain: aeneid, transport: aeneidTransport() });
 
 /* ────────────────────────── deployed addresses (lowercase for cursor keys) */
+/* Registry default mirrors `sdk/src/config.ts` so the indexer picks up
+ * PublisherRegistered events out-of-the-box. Env var still wins for the
+ * integration test (which deploys a fresh registry per run). */
+const DEFAULT_REGISTRY_AENEID = "0x33519cf182bf9830046352150f4e03a5592bddfa";
 export const CONTRACTS = {
   cdr:              "0xcccccc0000000000000000000000000000000005",
   hatchCondition:   "0x9362bf2874c17ebe2d977a16861ee51bfbb0b474", // v2.1
   pass:             "0x9fc74922a10ad962570eb9692e66b0f6cb6909e1",
   oracle:           "0x5257eabbf0297ca6073ad0d7aba09c980d708a24",
-  // PublisherRegistry is set at runtime (the integration test deploys a fresh one)
-  registry:         (process.env.REGISTRY_ADDR ?? "").toLowerCase(),
+  registry:         (process.env.REGISTRY_ADDR ?? DEFAULT_REGISTRY_AENEID).toLowerCase(),
   licensingModule:  "0x04fbd8a2e56dd85cfd5500a4a4dfa955b9f1de6f",
   // Story DisputeModule (identical address on Aeneid + Mainnet).
   disputeModule:    "0x9b7a9c70aff961c799110954fc06f3093aeb94c5",
