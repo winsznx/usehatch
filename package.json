@@ -13,6 +13,15 @@
   "scripts": {
     "smoke": "node scripts/section1-smoke.mjs"
   },
+  "packageManager": "pnpm@10.33.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@ipshipyard/node-datachannel",
+      "esbuild",
+      "keccak",
+      "secp256k1"
+    ]
+  },
   "dependencies": {
     "@openzeppelin/contracts": "5.1.0",
     "@piplabs/cdr-contracts": "0.2.1",
