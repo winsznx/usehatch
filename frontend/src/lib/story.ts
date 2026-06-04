@@ -11,7 +11,7 @@
  * smart wallet (paymaster-sponsored, no gas paid by user). */
 import { useMemo } from "react";
 import { useAccount, useChainId, usePublicClient, useWalletClient } from "wagmi";
-import { custom, type Address, type Hash, type Hex, type PublicClient } from "viem";
+import { createWalletClient, custom, type Address, type Hash, type Hex, type PublicClient, type WalletClient } from "viem";
 import { StoryClient, type StoryConfig } from "@story-protocol/core-sdk";
 import { AENEID, HATCH, type HatchConfig, type TxExecutor } from "@usehatch/sdk";
 import { useSmartWalletsSafe } from "./privy-bridge.js";
@@ -59,7 +59,10 @@ function withGasEstimation(provider: JsonRpcProvider, publicClient: PublicClient
 export interface StoryWiring {
   storyClient: StoryClient;
   account: { address: `0x${string}`; type: "json-rpc" };
-  walletClient: ReturnType<typeof useWalletClient>["data"];
+  /** Gas-estimating walletClient — every `eth_sendTransaction` it issues is
+   *  guaranteed to carry a populated `gas` field, so CDR / registry / Story
+   *  SDK writes all land instead of dying at "intrinsic gas too low". */
+  walletClient: WalletClient;
   publicClient: ReturnType<typeof usePublicClient>;
   hatchConfig: Pick<HatchConfig, "chain" | "hatch">;
   /** Sponsored-tx executor (Privy + Pimlico). null when Privy is disabled
@@ -79,6 +82,10 @@ export function useStoryWiring(): StoryWiring | null {
     if (!isConnected || !address || chainId !== STORY_AENEID_ID) return null;
     if (!publicClient || !walletClient) return null;
 
+    /* Wrap the underlying provider once; both the StoryClient transport and the
+     * viem walletClient we expose are built on top of it, so every signed write
+     * downstream (Story SDK, CDR uploader, our HatchPublisherRegistry calls)
+     * gets gas estimation injected at the same point. */
     const wrappedProvider = withGasEstimation(walletClient.transport as unknown as JsonRpcProvider, publicClient);
     const transport = custom(wrappedProvider);
     const storyConfig: StoryConfig = {
@@ -87,6 +94,12 @@ export function useStoryWiring(): StoryWiring | null {
       chainId: "aeneid",
     } as StoryConfig;
     const storyClient = StoryClient.newClient(storyConfig);
+
+    const wrappedWalletClient = createWalletClient({
+      account: { address, type: "json-rpc" },
+      chain: walletClient.chain,
+      transport,
+    });
 
     const txExecutor: TxExecutor | null = smartWallet
       ? {
@@ -103,7 +116,7 @@ export function useStoryWiring(): StoryWiring | null {
     return {
       storyClient,
       account: { address, type: "json-rpc" },
-      walletClient,
+      walletClient: wrappedWalletClient,
       publicClient,
       hatchConfig: { chain: AENEID, hatch: HATCH },
       txExecutor,
