@@ -1,8 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import "@rainbow-me/rainbowkit/styles.css";
-
 import "./design/styles.css";
 import "./design/landing.css";
 import "./design/console.css";

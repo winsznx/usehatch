@@ -17,9 +17,8 @@ import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { WagmiProvider as PrivyWagmiProvider, createConfig as createPrivyWagmiConfig } from "@privy-io/wagmi";
 import { WagmiProvider } from "wagmi";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
 
-import { wagmiConfig, hatchLightTheme, storyAeneid } from "./wagmi.js";
+import { wagmiConfig, storyAeneid } from "./wagmi.js";
 import { queryClient } from "./queries.js";
 import { config as appConfig } from "./config.js";
 import { SmartWalletBridge } from "./privy-bridge.js";
@@ -73,9 +72,7 @@ export function AppProviders({ children }: PropsWithChildren) {
           <PrivyWagmiProvider config={privyWagmiConfig as unknown as Parameters<typeof PrivyWagmiProvider>[0]["config"]}>
             <SmartWalletsProvider config={paymasterContext ? { paymasterContext } : undefined}>
               <SmartWalletBridge>
-                <RainbowKitProvider theme={hatchLightTheme} modalSize="compact">
-                  {children}
-                </RainbowKitProvider>
+                {children}
               </SmartWalletBridge>
             </SmartWalletsProvider>
           </PrivyWagmiProvider>
@@ -84,13 +81,17 @@ export function AppProviders({ children }: PropsWithChildren) {
     );
   }
 
+  // Privy disabled fallback: bare wagmi only. The legacy ConnectWallet code
+  // path used to need RainbowKit here, but the Privy-driven button below
+  // handles both embedded + injected wallets through one modal when Privy is
+  // on. With Privy off, only programmatic wagmi connections are available
+  // (no UI). This branch should only matter for local development without
+  // a Privy app id configured.
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <SmartWalletBridge>
-          <RainbowKitProvider theme={hatchLightTheme} modalSize="compact">
-            {children}
-          </RainbowKitProvider>
+          {children}
         </SmartWalletBridge>
       </QueryClientProvider>
     </WagmiProvider>

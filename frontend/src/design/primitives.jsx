@@ -1,9 +1,9 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Icons } from "./icons.jsx";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAccount, useChainId, useSignMessage, useSwitchChain, useDisconnect } from "wagmi";
 import { formatEther, getAddress } from "viem";
+import { usePrivySafe } from "../lib/privy-bridge.js";
 
 /* ---------- Adapters: API publisher/hatch → display fields ---------- */
 const PUB_PALETTE = ["#E04F2C", "#2D5F4F", "#C28D3A", "#8A5A2B", "#5C544A"];
@@ -300,7 +300,11 @@ function relTimeAgo(ts) {
 }
 export { HatchCard };
 
-/* ---------- ConnectWallet — RainbowKit modal → SIWE handshake ---------- */
+/* ConnectWallet — Privy modal handles both email (embedded smart wallet) and
+ * external EOAs (MetaMask, Phantom, Rabby, WalletConnect QR) in one UI. After
+ * Privy authenticates, the connected wallet is exposed to wagmi via
+ * @privy-io/wagmi's adapter, so the SIWE handshake below uses the wagmi
+ * hooks unchanged. */
 const AENEID_CHAIN_ID = 1315;
 
 function ConnectWallet() {
@@ -324,7 +328,9 @@ function ConnectWallet() {
     };
   }, [open]);
 
-  const { openConnectModal } = useConnectModal();
+  // Privy hooks. Safe-call them through a wrapper that returns no-op fallbacks
+  // when Privy is not mounted (local dev without VITE_PRIVY_APP_ID).
+  const privy = usePrivySafe();
   const { address: wagmiAddress, isConnected } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
@@ -376,8 +382,7 @@ function ConnectWallet() {
     setAddress(wallet);
   }
 
-  // If the user clicks Sign in without a wallet, open the RainbowKit modal
-  // and resume the SIWE handshake once the connection lands.
+  // Resume SIWE once wagmi sees the wallet after Privy authentication.
   React.useEffect(() => {
     if (!pendingSiwe || !isConnected || !wagmiAddress) return;
     setPendingSiwe(false);
@@ -389,26 +394,31 @@ function ConnectWallet() {
     })();
   }, [pendingSiwe, isConnected, wagmiAddress]);
 
-  // wagmi auto-reconnects to the active injected wallet on page load, so
-  // `openConnectModal` is `undefined` until we disconnect. Once disconnected,
-  // the picker becomes available and we trigger it here.
-  React.useEffect(() => {
-    if (pendingSiwe && !isConnected && openConnectModal) openConnectModal();
-  }, [pendingSiwe, isConnected, openConnectModal]);
-
   async function onSignIn() {
     if (busy) return;
     setPendingSiwe(true);
-    if (isConnected) {
-      try { await disconnectAsync(); } catch { /* fall through; effect retries */ }
-      return; // effect above will open the modal once isConnected flips to false
+    if (privy.ready && !privy.authenticated) {
+      try { await privy.login(); }
+      catch (e) {
+        setPendingSiwe(false);
+        alert(`Sign-in failed: ${(e && e.message) || e}`);
+      }
+      return;
     }
-    if (openConnectModal) openConnectModal();
+    // Already authenticated with Privy but SIWE not yet completed: trigger SIWE.
+    if (privy.authenticated && wagmiAddress) {
+      setPendingSiwe(false);
+      setBusy(true);
+      try { await runSiwe(wagmiAddress); }
+      catch (e) { alert(`Sign-in failed: ${(e && e.message) || e}`); }
+      finally { setBusy(false); }
+    }
   }
 
   async function onDisconnect() {
     const { setSiweSession } = await import("../lib/siwe.js");
     try { await disconnectAsync(); } catch { /* user already gone */ }
+    try { await privy.logout(); } catch { /* not logged in via Privy */ }
     setSiweSession(null);
     setAddress(null);
     setOpen(false);
