@@ -26,6 +26,9 @@ importers:
       '@usehatch/sdk':
         specifier: link:../sdk
         version: link:../sdk
+      buffer:
+        specifier: ^6.0.3
+        version: 6.0.3
       framer-motion:
         specifier: ^12.40.0
         version: 12.40.0(@emotion/is-prop-valid@1.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
