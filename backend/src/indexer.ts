@@ -500,6 +500,34 @@ export async function runIndexer({ startBlock, tickIntervalMs = 5000 }: { startB
   ];
   if (CONTRACTS.registry) pairs.push({ contract: CONTRACTS.registry, abi: registryAbi, dispatch: dispatchRegistry });
 
+  /* Heal existing publisher rows that were indexed before subscription_terms_id
+     backfill landed. Reads LicenseRegistry for each NULL row — bounded scan so
+     it can't blow up if the table grows. */
+  try {
+    const stale = await db.select({ wallet: schema.publishers.wallet, publisherRootIp: schema.publishers.publisherRootIp })
+      .from(schema.publishers).where(sql`${schema.publishers.subscriptionTermsId} IS NULL`).limit(500);
+    if (stale.length > 0) console.log(`[idx] healing ${stale.length} publisher row(s) with NULL subscriptionTermsId`);
+    for (const row of stale) {
+      try {
+        const count = await publicClient.readContract({
+          address: LICENSE_REGISTRY, abi: licenseRegistryAbi, functionName: "getAttachedLicenseTermsCount", args: [row.publisherRootIp as Address],
+        });
+        if (count === 0n) continue;
+        const [, termsId] = await publicClient.readContract({
+          address: LICENSE_REGISTRY, abi: licenseRegistryAbi, functionName: "getAttachedLicenseTerms", args: [row.publisherRootIp as Address, 0n],
+        });
+        await db.update(schema.publishers)
+          .set({ subscriptionTermsId: termsId })
+          .where(eq(schema.publishers.wallet, row.wallet));
+        console.log(`[idx] healed ${row.wallet} → termsId=${termsId.toString()}`);
+      } catch (e) {
+        console.log(`[idx] heal failed for ${row.wallet}: ${(e as Error).message}`);
+      }
+    }
+  } catch (e) {
+    console.log(`[idx] startup heal scan failed: ${(e as Error).message}`);
+  }
+
   // initial fast catch-up
   const initialHead = await head();
   for (const p of pairs) {
