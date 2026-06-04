@@ -196,12 +196,41 @@ async function handleFinalized(log: any) {
   indexerBus.emit("outcome:finalized", { hatchUuid: uuid, hatchId: log.args.hatchId });
 }
 
+/* Story's LicenseRegistry on Aeneid (chain 1315). Identical to mainnet (1514).
+ * Used to backfill the subscription terms id at register time — the publisher's
+ * `mintAndRegisterIpAssetWithPilTerms` call attaches PIL terms at index 0, but
+ * neither HatchPublisherRegistry nor Story's LicensingModule re-emit them in a
+ * shape the indexer was watching, so we read them on-chain here. */
+const LICENSE_REGISTRY = "0x529a750E02d8E2f15649c13D69a465286a780e24" as const;
+const licenseRegistryAbi = parseAbi([
+  "function getAttachedLicenseTerms(address ipId, uint256 index) view returns (address licenseTemplate, uint256 licenseTermsId)",
+  "function getAttachedLicenseTermsCount(address ipId) view returns (uint256)",
+]);
+
 async function handlePublisherRegistered(log: any) {
-  console.log(`[idx] PublisherRegistered: ${lc(log.args.publisher)} → ${lc(log.args.rootIp)}`);
+  const wallet = lc(log.args.publisher);
+  const rootIp = lc(log.args.rootIp);
+  console.log(`[idx] PublisherRegistered: ${wallet} → ${rootIp}`);
+  let subscriptionTermsId: bigint | null = null;
+  try {
+    const count = await publicClient.readContract({
+      address: LICENSE_REGISTRY, abi: licenseRegistryAbi, functionName: "getAttachedLicenseTermsCount", args: [rootIp as Address],
+    });
+    if (count > 0n) {
+      const [, termsId] = await publicClient.readContract({
+        address: LICENSE_REGISTRY, abi: licenseRegistryAbi, functionName: "getAttachedLicenseTerms", args: [rootIp as Address, 0n],
+      });
+      subscriptionTermsId = termsId;
+    }
+  } catch (e) {
+    console.log(`[idx] PublisherRegistered: getAttachedLicenseTerms failed for ${rootIp}: ${(e as Error).message}`);
+  }
   await db.insert(schema.publishers).values({
-    wallet: lc(log.args.publisher),
-    publisherRootIp: lc(log.args.rootIp),
-  }).onConflictDoNothing();
+    wallet, publisherRootIp: rootIp, subscriptionTermsId,
+  }).onConflictDoUpdate({
+    target: schema.publishers.wallet,
+    set: { publisherRootIp: rootIp, ...(subscriptionTermsId != null ? { subscriptionTermsId } : {}) },
+  });
 }
 
 async function handleStaked(log: any) {
