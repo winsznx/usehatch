@@ -41,5 +41,6 @@ declare module "*.jsx" {
   export { _anyExport as useInView };
   export { _anyExport as useCountUp };
   export { _anyExport as LucideIcon };
+  export { _anyExport as DocsApp };
   export default _anyExport;
 }

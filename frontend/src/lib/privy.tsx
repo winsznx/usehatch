@@ -11,7 +11,7 @@
  * smart wallet implementation). Testnet sponsorship is free; mainnet requires a
  * Privy/Pimlico billing relationship. */
 
-import { PropsWithChildren } from "react";
+import { type PropsWithChildren } from "react";
 import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { WagmiProvider as PrivyWagmiProvider, createConfig as createPrivyWagmiConfig } from "@privy-io/wagmi";
@@ -51,14 +51,16 @@ const privyWagmiConfig = createPrivyWagmiConfig({
   transports: { [storyAeneid.id]: buildTransport(appConfig.rpcUrl, appConfig.rpcUrlFallbacks) },
 });
 
+/* Privy 3.x split `embeddedWallets.createOnLogin` into per-chain configs.
+ * For our EVM-only stack we only need `ethereum.createOnLogin`. */
 const privyAppConfig: PrivyClientConfig = {
   loginMethods: ["email", "wallet"],
-  embeddedWallets: { createOnLogin: "users-without-wallets" },
+  embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
   defaultChain: storyAeneid,
   supportedChains: [storyAeneid],
   appearance: {
     theme: "light",
-    accentColor: "#E04F2C",          // matches Hatch's --hot
+    accentColor: "#E04F2C",
     logo: "/hatch-logo.jpg",
   },
 };
@@ -68,7 +70,7 @@ export function AppProviders({ children }: PropsWithChildren) {
     return (
       <PrivyProvider appId={PRIVY_APP_ID} config={privyAppConfig}>
         <QueryClientProvider client={queryClient}>
-          <PrivyWagmiProvider config={privyWagmiConfig}>
+          <PrivyWagmiProvider config={privyWagmiConfig as unknown as Parameters<typeof PrivyWagmiProvider>[0]["config"]}>
             <SmartWalletsProvider config={paymasterContext ? { paymasterContext } : undefined}>
               <SmartWalletBridge>
                 <RainbowKitProvider theme={hatchLightTheme} modalSize="compact">

@@ -1,16 +1,9 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @usehatch/sdk build && pnpm --filter frontend build",
-    "watchPatterns": [
-      "frontend/**",
-      "sdk/**",
-      "pnpm-lock.yaml",
-      "pnpm-workspace.yaml"
-    ]
+    "dockerfilePath": "frontend/Dockerfile"
   },
   "deploy": {
-    "startCommand": "pnpm --filter frontend exec vite preview --port $PORT --host 0.0.0.0",
     "restartPolicyType": "ALWAYS"
   }
 }

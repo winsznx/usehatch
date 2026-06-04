@@ -1,24 +1,22 @@
-# Frontend service Dockerfile. Builds the SDK + the Vite app, then serves the
-# bundled dist with vite preview. Two stage so the runtime image is small.
+# Frontend service Dockerfile. Build context = repo root.
+# Same per-package-lockfile pattern as backend.
 FROM node:22-bookworm-slim AS builder
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 WORKDIR /app
 
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
-COPY sdk/package.json ./sdk/
-COPY backend/package.json ./backend/
-COPY frontend/package.json ./frontend/
-
-RUN pnpm install --frozen-lockfile
-
+# SDK first (frontend imports @usehatch/sdk via link:../sdk).
+COPY sdk/package.json sdk/pnpm-lock.yaml ./sdk/
+RUN cd sdk && pnpm install --frozen-lockfile
 COPY sdk/ ./sdk/
+RUN cd sdk && pnpm build
+
+# Frontend deps.
+COPY frontend/package.json frontend/pnpm-lock.yaml ./frontend/
+RUN cd frontend && pnpm install --frozen-lockfile
 COPY frontend/ ./frontend/
 COPY docs/ ./docs/
 
-# Bake build-time env vars from Railway secrets into the Vite bundle.
-# Each VITE_* var Railway injects at build time is read by Vite via import.meta.env.
+# Vite reads VITE_* env vars at build time and inlines them into the bundle.
 ARG VITE_BACKEND_URL
 ARG VITE_RPC_URL
 ARG VITE_CHAIN_ID
@@ -36,22 +34,18 @@ ENV VITE_PRIVY_SPONSORSHIP_POLICY_ID=$VITE_PRIVY_SPONSORSHIP_POLICY_ID
 ENV VITE_VAPID_PUBLIC_KEY=$VITE_VAPID_PUBLIC_KEY
 ENV VITE_BLUESKY_HANDLE=$VITE_BLUESKY_HANDLE
 
-RUN pnpm --filter @usehatch/sdk build && pnpm --filter frontend build
+RUN cd frontend && pnpm build
 
-# Runtime stage. We still need pnpm + the workspace structure because
-# `vite preview` is the simplest static-ish server option that's already
-# in the dep tree. For higher traffic, swap to nginx with frontend/dist.
+# Runtime. Serve the dist/ via vite preview (fine for low traffic; swap to
+# nginx for high traffic by adding a separate runner stage based on nginx).
 FROM node:22-bookworm-slim AS runner
 ENV NODE_ENV=production
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 WORKDIR /app
 
-COPY --from=builder /app/pnpm-workspace.yaml /app/pnpm-lock.yaml /app/package.json ./
-COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/sdk ./sdk
 COPY --from=builder /app/frontend ./frontend
 
 EXPOSE 5173
-CMD ["sh", "-c", "pnpm --filter frontend exec vite preview --port ${PORT:-5173} --host 0.0.0.0"]
+WORKDIR /app/frontend
+CMD ["sh", "-c", "pnpm exec vite preview --port ${PORT:-5173} --host 0.0.0.0"]

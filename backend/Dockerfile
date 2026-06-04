@@ -1,39 +1,33 @@
-# Backend service Dockerfile. Builds the SDK then runs the Hono API + workers
-# via tsx. Uses pnpm 10 explicitly to avoid Railpack auto-detect quirks.
-#
-# Multi-stage so the final runtime image carries only what runner.ts needs.
+# Backend service Dockerfile. Build context = repo root.
+# Each sub-package has its own pnpm-lock.yaml (this is NOT a pnpm workspace).
+# Backend references the SDK via `link:../sdk` in its package.json, which pnpm
+# resolves as a symlink at install time. So the SDK directory must already
+# exist when backend's install runs.
 FROM node:22-bookworm-slim AS builder
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 WORKDIR /app
 
-# Copy workspace manifests first so dep layers cache when only source changes.
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
-COPY sdk/package.json ./sdk/
-COPY backend/package.json ./backend/
-COPY frontend/package.json ./frontend/
-
-# Install every workspace package incl. devDeps (we need tsc to build the SDK).
-RUN pnpm install --frozen-lockfile
-
-# Copy source and build the SDK (backend imports @usehatch/sdk via workspace link).
+# Build the SDK first so the `link:../sdk` reference from backend resolves to
+# a directory with a built `dist/`.
+COPY sdk/package.json sdk/pnpm-lock.yaml ./sdk/
+RUN cd sdk && pnpm install --frozen-lockfile
 COPY sdk/ ./sdk/
-COPY backend/ ./backend/
-RUN pnpm --filter @usehatch/sdk build
+RUN cd sdk && pnpm build
 
-# Runtime stage. Slim Node base. Copy everything we need from builder.
+# Now install backend. pnpm sees `link:../sdk` and symlinks /app/sdk.
+COPY backend/package.json backend/pnpm-lock.yaml ./backend/
+RUN cd backend && pnpm install --frozen-lockfile
+COPY backend/ ./backend/
+
+# Runtime stage. Slim Node base. Copy the built workspace tree.
 FROM node:22-bookworm-slim AS runner
 ENV NODE_ENV=production
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 WORKDIR /app
 
-COPY --from=builder /app/pnpm-workspace.yaml /app/pnpm-lock.yaml /app/package.json ./
-COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/sdk ./sdk
 COPY --from=builder /app/backend ./backend
 
 EXPOSE 4011
-CMD ["pnpm", "--filter", "@usehatch/backend", "exec", "tsx", "src/runner.ts"]
+WORKDIR /app/backend
+CMD ["pnpm", "exec", "tsx", "src/runner.ts"]
