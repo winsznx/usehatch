@@ -20,7 +20,7 @@ export const STORY_AENEID_ID = 1315;
 
 export interface StoryWiring {
   storyClient: StoryClient;
-  account: { address: `0x${string}` };
+  account: { address: `0x${string}`; type: "json-rpc" };
   walletClient: ReturnType<typeof useWalletClient>["data"];
   publicClient: ReturnType<typeof usePublicClient>;
   hatchConfig: Pick<HatchConfig, "chain" | "hatch">;
@@ -43,7 +43,7 @@ export function useStoryWiring(): StoryWiring | null {
 
     const transport = custom(walletClient.transport);
     const storyConfig: StoryConfig = {
-      account: { address },
+      account: { address, type: "json-rpc" },
       transport,
       chainId: "aeneid",
     } as StoryConfig;
@@ -63,7 +63,7 @@ export function useStoryWiring(): StoryWiring | null {
 
     return {
       storyClient,
-      account: { address },
+      account: { address, type: "json-rpc" },
       walletClient,
       publicClient,
       hatchConfig: { chain: AENEID, hatch: HATCH },

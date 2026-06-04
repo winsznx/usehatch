@@ -73,6 +73,9 @@ function PublisherOnboard() {
         account: wiring.account,
         collection: { name: name || "Untitled", symbol: symbol || "PUB" },
         subscription: { mintingFeeWip: parseEther(mintingFee || "0"), commercialRevSharePct: Number(revShare || "0") },
+        /* Reuse Story's public SPG collection — per-publisher createCollection reverts on Aeneid
+           since 2026-05-29 (chain regression). Same fallback as view_compose. */
+        spgNftContract: "0xc32A8a0FF3beDDDa58393d022aF433e78739FAbc",
       });
       setPhase("staking");
       const stakeAmt = parseEther(stakeWip || "0");
