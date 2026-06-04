@@ -31,17 +31,17 @@
 
 ## 0:25 – 0:45 · Sign in + become a publisher
 
-**Do:** Click **Sign in** top-right. RainbowKit → MetaMask → SIWE signature. Click **Command Center** in the rail. Onboarding form is auto-shown. Fill: `Alpha Spike`, `ALPHA`, `0.05`, `10`, `0.1`. Click **Register publisher**.
+**Do:** Click **Sign in** top-right. Privy modal opens → pick **MetaMask** (or email) → SIWE signature. Click **Command Center** in the rail. Onboarding form is auto-shown. Fill: `Alpha Spike`, `ALPHA`, `0.05`, `10`, `0.1`. Click **Register publisher**.
 
 **Say (over the wallet popups):**
 
-> SIWE auth. Then in one form: the SDK mints an SPG NFT collection, registers an IP asset with Story's PIL framework, attaches subscription license terms, registers in HatchPublisherRegistry, and stakes WIP. Every transaction signs from the user's wallet — we never hold keys.
+> SIWE auth via Privy. Then in one form: the SDK registers an IP asset under Story's public SPG collection, attaches subscription license terms via Story's PIL framework, registers in HatchPublisherRegistry, and stakes WIP. Every transaction signs from the user's wallet — we never hold keys.
 
 ---
 
 ## 0:45 – 1:25 · Seal a hatch
 
-**Do:** Click **Seal a hatch**. Fill: title, body, embargo `+1 min`, reveal `+2 min`, mode `Dual`, price `0.01`. Optionally attach a small image. Click **Seal this hatch**.
+**Do:** Click **Seal a hatch**. Fill: title, body. Embargo defaults to `now +1 min` — leave it. Manually edit **Reveal at** to `now +2 min` (the form uses absolute datetime, default is `+30 min`). Mode `Dual`, price `0.01`. Optionally attach a small image. Click **Seal this hatch**.
 
 **Say (as the transactions fire):**
 
@@ -53,7 +53,7 @@
 
 ## 1:25 – 2:00 · Reader: subscribe + queue
 
-**Do:** Switch to **Wallet B** in a second browser profile. Sign in. Click **Publishers** → **Follow** Alpha Spike → click into the publisher → click **Subscribe**. Two wallet pops:
+**Do:** Switch to **Wallet B** in a second browser profile. Sign in (Privy modal → MetaMask). Click **Publishers** → **Follow** Alpha Spike. Then open the hatch detail page — easiest path: paste the Storyscan-toast hatch URL from Wallet A, or click the new entry from **Your Timeline**. On the hatch detail, click **Subscribe to Alpha Spike**. Two wallet pops:
 
 1. Subscriber mints a sub License Token (from the publisher root, paying the subscription minting fee in WIP).
 2. The server (with `PASS_MINTER_PK` set) mints the paired `HatchSubscriptionPass` to the subscriber.

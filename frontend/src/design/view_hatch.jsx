@@ -152,6 +152,9 @@ function Gate({ hatch, pub }) {
     onError: (e) => setBuyResult({ ok: false, msg: e instanceof Error ? e.message : String(e) }),
   });
 
+  /* Subscribe pulls WIP via storyClient.license.mintLicenseTokens, which routes through
+     Story's contractCallWithFees → handleIpWrapping. Auto-wrap from native IP is on by
+     default (enableAutoWrapIp). No manual wrap step needed here. */
   const subscribeMut = useMutation({
     mutationFn: async () => {
       if (!wiring) throw new Error("Connect wallet on Story Aeneid first");

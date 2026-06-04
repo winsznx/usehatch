@@ -1,6 +1,7 @@
 import React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { claimAllRevenue, createPublisher, setDelegate, stake, wrapNativeToWip } from "@usehatch/sdk";
+import { AENEID_FAUCET_URL, InsufficientNativeIpError, ensureWip } from "../lib/wip.js";
 import { formatEther, isAddress, parseEther } from "viem";
 import { BigCountdown, Curve, HatchOrb, OrbPip } from "./console_orb.jsx";
 import { Icons } from "./icons.jsx";
@@ -56,9 +57,9 @@ function PublisherOnboard() {
   const [mintingFee, setMintingFee] = useStateP("0.05");
   const [revShare, setRevShare] = useStateP("10");
   const [stakeWip, setStakeWip] = useStateP("0.1");
-  const [phase, setPhase] = useStateP(/** @type {"idle"|"registering"|"staking"} */("idle"));
+  const [phase, setPhase] = useStateP(/** @type {"idle"|"registering"|"wrapping"|"staking"} */("idle"));
   const [result, setResult] = useStateP(/** @type {null | { msg: string; tx?: string }} */(null));
-  const [error, setError] = useStateP(/** @type {null | string} */(null));
+  const [error, setError] = useStateP(/** @type {null | { msg: string; faucet?: boolean }} */(null));
 
   const onboardMut = useMutation({
     mutationFn: async () => {
@@ -77,10 +78,11 @@ function PublisherOnboard() {
            since 2026-05-29 (chain regression). Same fallback as view_compose. */
         spgNftContract: "0xc32A8a0FF3beDDDa58393d022aF433e78739FAbc",
       });
-      setPhase("staking");
       const stakeAmt = parseEther(stakeWip || "0");
       let stakeTx = null;
       if (stakeAmt > 0n) {
+        await ensureWip(wiring, stakeAmt, { onWrapStart: () => setPhase("wrapping") });
+        setPhase("staking");
         const s = await stake({ config: { ...wiring.hatchConfig, storage: /** @type {any} */(null) }, publicClient: wiring.publicClient, walletClient: wiring.walletClient, account: wiring.account, amount: stakeAmt });
         stakeTx = s.stakeTx;
       }
@@ -91,7 +93,11 @@ function PublisherOnboard() {
       setResult({ msg: `Registered as ${desc.publisherRootIpId}${stakeTx ? " + staked" : ""}`, tx: stakeTx ?? desc.registryTxHash });
       qc.invalidateQueries({ queryKey: qk.publishers() });
     },
-    onError: (e) => { setPhase("idle"); setError(e instanceof Error ? e.message : String(e)); },
+    onError: (e) => {
+      setPhase("idle");
+      const isFaucet = e instanceof InsufficientNativeIpError;
+      setError({ msg: e instanceof Error ? e.message : String(e), faucet: isFaucet });
+    },
   });
 
   return (
@@ -120,7 +126,7 @@ function PublisherOnboard() {
             <input className="input" style={{ width: "100%", marginTop: 4 }} value={stakeWip} onChange={(e) => setStakeWip(e.target.value)} placeholder="0.1" />
           </label>
           <Button variant="primary" size="lg" disabled={!session?.token || !wiring || onboardMut.isPending || !name || !symbol} onClick={() => onboardMut.mutate()}>
-            {phase === "registering" ? "Registering on-chain…" : phase === "staking" ? "Staking WIP…" : "Register publisher"}
+            {phase === "registering" ? "Registering on-chain…" : phase === "wrapping" ? "Wrapping IP → WIP…" : phase === "staking" ? "Staking WIP…" : "Register publisher"}
           </Button>
           {result && (
             <p className="verdant" style={{ fontSize: 12 }}>
@@ -128,7 +134,14 @@ function PublisherOnboard() {
               {result.tx && <> · <a target="_blank" rel="noreferrer" style={{ color: "var(--hot)" }} href={`https://aeneid.storyscan.io/tx/${result.tx}`}>tx</a></>}
             </p>
           )}
-          {error && <p className="hot" style={{ fontSize: 12 }}>{error}</p>}
+          {error && (
+            <p className="hot" style={{ fontSize: 12 }}>
+              {error.msg}
+              {error.faucet && (
+                <> · <a target="_blank" rel="noreferrer" style={{ color: "var(--hot)", textDecoration: "underline" }} href={AENEID_FAUCET_URL}>Get testnet IP →</a></>
+              )}
+            </p>
+          )}
         </div>
         <div>
           <div className="section-rule"><h2>What this does</h2></div>
@@ -139,7 +152,7 @@ function PublisherOnboard() {
             4. (Optional) Stakes WIP via approve + stake.
           </p>
           <p className="body-sm ink-soft" style={{ marginTop: 12 }}>
-            You need WIP in your wallet to stake. Wrap native IP via the wrapper contract first if needed.
+            Stake auto-wraps native IP → WIP if your WIP balance is short. Need testnet IP? <a target="_blank" rel="noreferrer" style={{ color: "var(--hot)" }} href={AENEID_FAUCET_URL}>Aeneid faucet</a>.
           </p>
         </div>
       </div>

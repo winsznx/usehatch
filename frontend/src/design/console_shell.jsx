@@ -1,11 +1,14 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { useBalance } from "wagmi";
-import { formatUnits } from "viem";
+import { useBalance, useReadContract } from "wagmi";
+import { formatUnits, parseEther } from "viem";
+import { wrapNativeToWip } from "@usehatch/sdk";
 import { useSiweSession } from "../lib/siwe.js";
 import { useFollowsQuery, usePublishersQuery } from "../lib/hooks.js";
+import { useStoryWiring } from "../lib/story.js";
+import { AENEID_FAUCET_URL } from "../lib/wip.js";
 import { Icons } from "./icons.jsx";
-import { Avatar, ConnectWallet } from "./primitives.jsx";
+import { Avatar, Button, ConnectWallet } from "./primitives.jsx";
 import { OrbPip } from "./console_orb.jsx";
 import { Publisher } from "./view_publisher.jsx";
 import { Queue, Timeline } from "./view_timeline.jsx";
@@ -185,6 +188,96 @@ function TopBarBalance() {
   return <span className="topbar-balance"><span className="lbl">BAL</span> {formatted} IP</span>;
 }
 
+/* WIP balance chip + inline wrap. WIP is the canonical fee/royalty token in Hatch
+ * (license mints, tips, registry stake). Surfacing the balance here demystifies the
+ * token and makes a one-click on-ramp from native IP always reachable. */
+const WIP_ABI = [
+  { type: "function", name: "balanceOf", stateMutability: "view",
+    inputs: [{ name: "owner", type: "address" }], outputs: [{ name: "", type: "uint256" }] },
+];
+function TopBarWip() {
+  const { session } = useSiweSession();
+  const wiring = useStoryWiring();
+  const [open, setOpen] = useStateS(false);
+  const [amount, setAmount] = useStateS("0.1");
+  const [busy, setBusy] = useStateS(false);
+  const [err, setErr] = useStateS(/** @type {string | null} */(null));
+  const { data: wipWei, refetch } = useReadContract({
+    address: wiring?.hatchConfig.chain.wip,
+    abi: WIP_ABI,
+    functionName: "balanceOf",
+    args: session?.wallet ? [session.wallet] : undefined,
+    query: { enabled: !!wiring && !!session?.wallet, refetchInterval: 15000 },
+  });
+  if (!session?.wallet) return null;
+  const formatted = wipWei != null ? Number(formatUnits(wipWei, 18)).toFixed(4) : "—";
+  const onWrap = async () => {
+    if (!wiring) return;
+    setErr(null);
+    let wei;
+    try { wei = parseEther(amount || "0"); } catch { setErr("Invalid amount"); return; }
+    if (wei <= 0n) { setErr("Amount must be > 0"); return; }
+    /* Pre-check native IP so we can surface the faucet link instead of a raw RPC error. */
+    const nativeBal = await wiring.publicClient.getBalance({ address: wiring.account.address });
+    if (nativeBal < wei) {
+      setErr(`Only ${Number(formatUnits(nativeBal, 18)).toFixed(4)} IP available — get more from the faucet.`);
+      return;
+    }
+    setBusy(true);
+    try {
+      await wrapNativeToWip({
+        config: { ...wiring.hatchConfig, storage: /** @type {any} */(null) },
+        publicClient: wiring.publicClient,
+        walletClient: wiring.walletClient,
+        account: wiring.account,
+        amount: wei,
+      });
+      setOpen(false);
+      await refetch();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally { setBusy(false); }
+  };
+  return (
+    <span className="topbar-balance" style={{ position: "relative", gap: 8 }}>
+      <span className="lbl">WIP</span>
+      <span>{formatted}</span>
+      <button
+        className="label-md"
+        onClick={() => setOpen((o) => !o)}
+        disabled={!wiring}
+        title={!wiring ? "Connect wallet on Story Aeneid" : "Wrap native IP into WIP"}
+        style={{ background: "transparent", border: "1px solid var(--rule)", borderRadius: 999, padding: "2px 8px", cursor: wiring ? "pointer" : "not-allowed", color: "var(--ink)" }}
+      >Wrap</button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 8, minWidth: 220, zIndex: 50 }}>
+          <div className="body-sm" style={{ color: "var(--ink-soft)" }}>Wrap native IP → WIP</div>
+          <input
+            className="input" type="number" min="0" step="0.01"
+            value={amount} onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.1" disabled={busy}
+            style={{ padding: "6px 8px", fontSize: 13 }}
+          />
+          <div style={{ display: "flex", gap: 6 }}>
+            <Button variant="primary" size="sm" disabled={busy} onClick={onWrap}>
+              {busy ? "Wrapping…" : "Wrap"}
+            </Button>
+            <Button variant="outline" size="sm" disabled={busy} onClick={() => { setOpen(false); setErr(null); }}>Cancel</Button>
+          </div>
+          {err && (
+            <div className="hot" style={{ fontSize: 11 }}>
+              {err}
+              {/faucet|enough IP|Insufficient/i.test(err) && (
+                <> · <a target="_blank" rel="noreferrer" href={AENEID_FAUCET_URL} style={{ color: "var(--hot)", textDecoration: "underline" }}>Get testnet IP →</a></>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </span>
+  );
+}
+
 function TopBar({ route, theme, onToggleTheme, nearestState, onOpenDrawer }) {
   const I = Icons;
   const r = ROUTES.find((x) => x.key === route) || ROUTES[0];
@@ -209,6 +302,7 @@ function TopBar({ route, theme, onToggleTheme, nearestState, onOpenDrawer }) {
         </span>
         <span className="topbar-clock">{clock} UTC</span>
         <TopBarBalance />
+        <TopBarWip />
         <ConnectWallet />
         <button className="icon-btn" onClick={onToggleTheme} aria-label="Toggle theme" title="Toggle theme">
           {theme === "dark" ? <I.Sun size={16} /> : <I.Moon size={16} />}
