@@ -36,20 +36,19 @@ ENV VITE_BLUESKY_HANDLE=$VITE_BLUESKY_HANDLE
 
 RUN cd frontend && pnpm build
 
-# Runtime. sirv is a production-grade static server: brotli + gzip on the wire,
-# `cache-control: max-age=31536000, immutable` on hashed asset paths, and an
-# SPA fallback to /index.html so client-side routes work. Replaces the dev
-# `vite preview` which served 4 MB uncompressed with no cache headers.
+# Runtime. Tiny inline Node static server. Avoids sirv-cli's port-collision
+# fallback behavior that picked port 5 instead of $PORT under Railway. This
+# server does:
+#   - gzip + brotli pre-compressed file lookup (sirv pre-built ".gz" / ".br")
+#   - cache-control: max-age=31536000, immutable on hashed /assets/* paths
+#   - SPA fallback to /index.html for non-asset 404s
+#   - bind to $PORT, listen on 0.0.0.0
 FROM node:22-bookworm-slim AS runner
 ENV NODE_ENV=production
 WORKDIR /app
 
-# Fresh install of sirv-cli in the runner stage so all its transitive deps
-# (sade, kleur, mime, sirv, totalist, ...) resolve cleanly. Using npm to
-# avoid pnpm's symlink layout which does not survive a Docker layer copy.
-RUN npm install --omit=dev --no-audit --no-fund --no-package-lock sirv-cli@3.0.0
-
 COPY --from=builder /app/frontend/dist ./dist
+COPY frontend/server.mjs ./server.mjs
 
 EXPOSE 5173
-CMD ["sh", "-c", "./node_modules/.bin/sirv dist --host 0.0.0.0 --port ${PORT:-5173} --single --etag --gzip --brotli --immutable --quiet"]
+CMD ["sh", "-c", "node server.mjs"]
