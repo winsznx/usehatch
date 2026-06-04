@@ -72,3 +72,83 @@ export const stateTempo: Record<HatchState, { breath: number; pulse: number; opa
   hatching:   { breath: 2.2, pulse: 0.42, opacity: 0.95 }, // urgent
   public:     { breath: 6.0, pulse: 0.10, opacity: 1.00 }, // open, calm
 };
+
+/* ── Artifact interpolation ────────────────────────────────────────────
+ *
+ * The HatchArtifact is driven by a continuous 0→1 progress value (scroll
+ * position). Each layer reads its own parameter from a piecewise-linear
+ * interpolation so that state transitions feel organic — not stepped.
+ *
+ * Keyframe stops are { at: number; value: number }[] — "at progress X,
+ * this layer should be at value Y." Everything between is lerped.
+ * ──────────────────────────────────────────────────────────────────── */
+
+export interface ArtifactLayers {
+  /** 0 = shell closed, 1 = shell fully separated */
+  shellSeparation: number;
+  /** 0 = no fractures visible, 1 = all fractures fully drawn */
+  fractureReveal: number;
+  /** 0 = core invisible, 1 = core fully visible + glowing */
+  coreOpacity: number;
+  /** 0 = no glow, 1 = full subsurface glow */
+  glowIntensity: number;
+  /** 0 = ambient dormant, 1 = ambient fully alive */
+  ambientScale: number;
+  /** Breathing speed multiplier — faster = more urgent */
+  breathSpeed: number;
+  /** Current conceptual state name (for readout labels) */
+  stateName: HatchState;
+}
+
+type Keyframe = { at: number; value: number };
+
+function lerpStops(stops: Keyframe[], t: number): number {
+  if (t <= stops[0].at) return stops[0].value;
+  if (t >= stops[stops.length - 1].at) return stops[stops.length - 1].value;
+  for (let i = 0; i < stops.length - 1; i++) {
+    const a = stops[i], b = stops[i + 1];
+    if (t >= a.at && t <= b.at) {
+      const local = (t - a.at) / (b.at - a.at);
+      return a.value + (b.value - a.value) * local;
+    }
+  }
+  return stops[stops.length - 1].value;
+}
+
+const SHELL_STOPS: Keyframe[]    = [{ at: 0, value: 0 }, { at: 0.45, value: 0 }, { at: 0.7, value: 0.3 }, { at: 0.85, value: 0.7 }, { at: 1, value: 1 }];
+const FRACTURE_STOPS: Keyframe[] = [{ at: 0, value: 0 }, { at: 0.28, value: 0 }, { at: 0.4, value: 0.12 }, { at: 0.55, value: 0.45 }, { at: 0.75, value: 0.85 }, { at: 1, value: 1 }];
+const CORE_STOPS: Keyframe[]     = [{ at: 0, value: 0 }, { at: 0.2, value: 0.05 }, { at: 0.4, value: 0.2 }, { at: 0.65, value: 0.55 }, { at: 0.85, value: 0.85 }, { at: 1, value: 1 }];
+const GLOW_STOPS: Keyframe[]     = [{ at: 0, value: 0.06 }, { at: 0.25, value: 0.15 }, { at: 0.5, value: 0.4 }, { at: 0.75, value: 0.75 }, { at: 1, value: 0.55 }];
+const AMBIENT_STOPS: Keyframe[]  = [{ at: 0, value: 0.3 }, { at: 0.25, value: 0.4 }, { at: 0.5, value: 0.6 }, { at: 0.75, value: 0.9 }, { at: 1, value: 0.65 }];
+const BREATH_STOPS: Keyframe[]   = [{ at: 0, value: 0.12 }, { at: 0.25, value: 0.25 }, { at: 0.5, value: 0.55 }, { at: 0.75, value: 0.85 }, { at: 1, value: 0.2 }];
+
+function stateNameAt(t: number): HatchState {
+  if (t < 0.22) return "sealed";
+  if (t < 0.48) return "incubating";
+  if (t < 0.78) return "hatching";
+  return "public";
+}
+
+export function artifactLerp(progress: number): ArtifactLayers {
+  const t = Math.max(0, Math.min(1, progress));
+  return {
+    shellSeparation: lerpStops(SHELL_STOPS, t),
+    fractureReveal:  lerpStops(FRACTURE_STOPS, t),
+    coreOpacity:     lerpStops(CORE_STOPS, t),
+    glowIntensity:   lerpStops(GLOW_STOPS, t),
+    ambientScale:    lerpStops(AMBIENT_STOPS, t),
+    breathSpeed:     lerpStops(BREATH_STOPS, t),
+    stateName:       stateNameAt(t),
+  };
+}
+
+/** Convert a discrete HatchState to a representative progress value
+ *  (used when the artifact is not scroll-driven, e.g. console rail). */
+export function stateToProgress(state: HatchState): number {
+  switch (state) {
+    case "sealed":     return 0.0;
+    case "incubating": return 0.35;
+    case "hatching":   return 0.65;
+    case "public":     return 1.0;
+  }
+}

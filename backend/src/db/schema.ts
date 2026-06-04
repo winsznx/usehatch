@@ -124,6 +124,75 @@ export const trackRecords = pgTable("track_records", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/* ────────────────────────── groups (Story GroupingModule)
+ * One row per Group IPA created via @usehatch/sdk's createGroup. Members are
+ * tracked in `group_members` so a single group can grow incrementally (Story
+ * caps groups at 1000 members). `licenseTermsId` is the LRP terms attached at
+ * registration — every member hatch's per-hatch terms must dedup to this id. */
+export const groups = pgTable("groups", {
+  groupIpId: text("group_ip_id").primaryKey(),                 // lowercase 0x… — the Group IP address
+  publisherRootIp: text("publisher_root_ip"),                  // back-ref when owner is a known publisher
+  ownerWallet: text("owner_wallet"),                           // creator wallet (signer of registerGroup)
+  groupPool: text("group_pool").notNull(),                     // typically EvenSplitGroupPool
+  licenseTermsId: bigint("license_terms_id", { mode: "bigint" }),
+  title: text("title"),                                        // editorial label set by composer
+  description: text("description"),
+  status: text("status").notNull().default("active"),          // active | locked (post-derivative) | dissolved
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  txHashes: jsonb("tx_hashes").$type<{ registerTerms?: string; registerGroup?: string }>(),
+}, (t) => ({
+  byPublisher: index("groups_publisher_idx").on(t.publisherRootIp),
+  byOwner: index("groups_owner_idx").on(t.ownerWallet),
+}));
+
+/* group_members — many-to-many between groups and IPs. We don't FK to hatches
+ * because group members can be ANY Story IP, not just our signal IPs. UI joins
+ * to `hatches` for display when applicable. */
+export const groupMembers = pgTable("group_members", {
+  groupIpId: text("group_ip_id").notNull(),                    // FK by convention
+  memberIpId: text("member_ip_id").notNull(),                  // lowercase 0x… — any IP
+  hatchUuid: integer("hatch_uuid"),                            // populated when memberIpId matches a known signal IP
+  addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.groupIpId, t.memberIpId] }),
+  byGroup: index("group_members_group_idx").on(t.groupIpId),
+  byMember: index("group_members_member_idx").on(t.memberIpId),
+}));
+
+/* ────────────────────────── disputes (Story DisputeModule)
+ * One row per on-chain dispute. `storyDisputeId` is the protocol's uint256 id.
+ * `targetIpId` may be a publisher root OR a signal IP — when it matches a known
+ * signal, `hatchUuid` is populated for fast joins. `status` is derived:
+ *   raised      → DisputeRaised seen, no judgement yet
+ *   judged-true → DisputeJudgementSet { decision: true } (target IS infringing)
+ *   judged-false→ DisputeJudgementSet { decision: false } (initiator loses bond)
+ *   cancelled   → DisputeCancelled before liveness closed
+ *   resolved    → DisputeResolved (final settlement) */
+export const disputes = pgTable("disputes", {
+  storyDisputeId: bigint("story_dispute_id", { mode: "bigint" }).primaryKey(),
+  targetIpId: text("target_ip_id").notNull(),                  // lowercase 0x…
+  hatchUuid: integer("hatch_uuid"),                            // nullable — only set when target == signal IP
+  publisherRootIp: text("publisher_root_ip"),                  // nullable — back-pointer when known
+  challenger: text("challenger").notNull(),
+  tag: text("tag").notNull(),                                  // bytes32 hex, decoded server-side
+  evidenceHash: text("evidence_hash"),                         // bytes32 hex from event
+  evidenceCid: text("evidence_cid"),                           // CID we resolved from hash (optional)
+  arbitrationPolicy: text("arbitration_policy"),
+  bondWei: bigint("bond_wei", { mode: "bigint" }),
+  status: text("status").notNull().default("raised"),
+  decision: boolean("decision"),
+  raisedAt: timestamp("raised_at", { withTimezone: true }).notNull().defaultNow(),
+  judgedAt: timestamp("judged_at", { withTimezone: true }),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  txHashes: jsonb("tx_hashes").$type<{ raised?: string; judged?: string; cancelled?: string; resolved?: string }>(),
+}, (t) => ({
+  byTarget: index("disputes_target_idx").on(t.targetIpId),
+  byPublisher: index("disputes_publisher_idx").on(t.publisherRootIp),
+  byHatch: index("disputes_hatch_idx").on(t.hatchUuid),
+  byStatus: index("disputes_status_idx").on(t.status),
+}));
+
 /* ────────────────────────── indexer cursor (per contract address) */
 export const indexerCursor = pgTable("indexer_cursor", {
   contract: text("contract").primaryKey(),                   // lowercase 0x…

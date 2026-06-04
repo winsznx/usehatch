@@ -40,88 +40,170 @@
 /* ============================================================
    HERO — object dominates the fold, type embraces it
    ============================================================ */
-.lp-hero { position: relative; min-height: calc(100vh - 56px); display: flex; flex-direction: column;
-  align-items: center; justify-content: center; text-align: center; padding: 24px 24px 64px; }
-.lp-hero-eyebrow { color: var(--ink-soft); display: inline-flex; align-items: center; gap: 10px; margin-bottom: clamp(14px, 2.4vh, 26px); white-space: nowrap; }
+.lp-hero { position: relative; min-height: 260svh; text-align: center; }
+.lp-hero--narrative { overflow: visible; }
+.lp-hero-frame {
+  position: sticky;
+  top: 0;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: clamp(62px, 7vh, 92px) 24px clamp(66px, 7vh, 92px);
+}
+.lp-hero .lp-d1 { font-size: clamp(48px, 8.2vw, 114px); }
+.lp-hero-eyebrow { color: var(--ink-soft); display: inline-flex; align-items: center; gap: 10px; margin-bottom: clamp(14px, 2.2vh, 24px); white-space: nowrap; }
 .lp-hero-eyebrow .lp-livedot { width: 6px; height: 6px; border-radius: 999px; background: var(--hot); box-shadow: 0 0 0 0 color-mix(in srgb, var(--hot) 60%, transparent); animation: lpPing 2.4s var(--ease) infinite; }
 @keyframes lpPing { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--hot) 55%, transparent); } 70%,100% { box-shadow: 0 0 0 7px transparent; } }
 
-/* headline lines hug + overlap the object */
-.lp-hero-line { position: relative; z-index: 3; color: var(--ink); text-wrap: balance; pointer-events: none; }
-.lp-hero-line--over { margin-bottom: clamp(-130px, -13vw, -78px); }
-.lp-hero-line--under { margin-top: clamp(-130px, -13vw, -78px); }
+/* headline lines hug the artifact without crossing the ceramic shell */
+.lp-hero-line { position: relative; z-index: 3; width: 100%; min-width: 0; max-width: 980px; margin: 0; color: var(--ink); text-wrap: balance; pointer-events: none; }
+.lp-hero-line--over { margin-bottom: clamp(6px, 1.4vw, 18px); }
+.lp-hero-line--under { margin-top: clamp(4px, 1vw, 12px); }
 .lp-hero-line .accent { color: var(--hot); }
 
-/* the living object sits between the two headline lines, type overlapping its faint orbits */
-.lp-objectwrap { position: relative; z-index: 2; display: grid; place-items: center;
-  width: clamp(240px, 70vw, 460px); height: clamp(240px, 70vw, 460px); margin: 0 auto; }
-/* On very narrow phones, shrink a touch more so the orb has comfortable
- * margin from both edges and stays optically centered with the headlines. */
-@media (max-width: 420px) {
-  .lp-objectwrap { width: min(78vw, 320px); height: min(78vw, 320px); }
-}
-
-.lp-hero-sub { margin: clamp(20px, 3vh, 32px) auto 0; max-width: 520px; color: var(--ink-soft); position: relative; z-index: 3; }
-.lp-hero-ctas { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; justify-content: center; }
-.lp-hero-readout { margin-top: 30px; color: var(--ink-soft); display: flex; gap: 8px 14px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.lp-hero-sub { margin: clamp(18px, 2.7vh, 30px) auto 0; max-width: 520px; color: var(--ink-soft); position: relative; z-index: 3; }
+.lp-hero-ctas { display: flex; gap: 12px; margin-top: clamp(22px, 3vh, 28px); flex-wrap: wrap; justify-content: center; }
+.lp-hero-readout { margin-top: clamp(22px, 3vh, 30px); color: var(--ink-soft); display: flex; gap: 8px 14px; align-items: center; flex-wrap: wrap; justify-content: center; }
 .lp-hero-readout .sep { color: var(--rule-strong); }
 .lp-scrollcue { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--ink-muted); }
 .lp-scrollcue svg { animation: lpBob 2.2s var(--ease) infinite; }
 @keyframes lpBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
 
 /* ============================================================
-   THE HATCH OBJECT — living sealed artifact
+   THE ARTIFACT STAGE — the scroll-driven capsule
    ============================================================ */
-.lp-object { position: relative; width: 100%; height: 100%; display: grid; place-items: center; }
-/* orbital field — concentric rings, each its own rotation */
-.lp-orbit { position: absolute; top: 50%; left: 50%; border: 1px solid var(--rule-strong); border-radius: 50%;
-  transform: translate(-50%, -50%); }
-.lp-orbit--1 { width: 100%; height: 100%; opacity: 0.55; animation: lpSpin 60s linear infinite; }
-.lp-orbit--2 { width: 78%; height: 78%; opacity: 0.7; animation: lpSpin 42s linear infinite reverse; }
-.lp-orbit--3 { width: 56%; height: 56%; opacity: 0.85; border-style: dashed; animation: lpSpin 30s linear infinite; }
-/* a node riding each orbit = a reader waiting in orbit */
-.lp-orbit::after { content: ""; position: absolute; top: -3px; left: 50%; width: 6px; height: 6px; margin-left: -3px;
-  border-radius: 999px; background: var(--ink-soft); }
-.lp-orbit--1::after { background: var(--saffron); }
-.lp-orbit--3::after { background: var(--hot); box-shadow: 0 0 6px color-mix(in srgb, var(--hot) 60%, transparent); }
-@keyframes lpSpin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+.lp-objectwrap {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: clamp(210px, 26vw, 320px);
+  aspect-ratio: 5 / 6;
+  margin: 0 auto clamp(12px, 2vw, 24px);
+}
+.lp-object {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
 
-/* the sealed core */
-.lp-core { position: relative; width: 44%; height: 44%; border-radius: 50%;
-  background:
-    radial-gradient(58% 58% at 42% 36%, color-mix(in srgb, var(--hot) 70%, #2a0f06) 0%,
-      #2a140b 46%, #170b06 100%);
-  box-shadow:
-    inset 0 2px 10px rgba(255,180,140,0.28),
-    inset 0 -16px 40px rgba(0,0,0,0.6),
-    0 18px 60px -20px rgba(224,79,44,0.5);
-  animation: lpBreathe 7s ease-in-out infinite; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; }
-.dark .lp-core { box-shadow: inset 0 2px 10px rgba(255,180,140,0.22), inset 0 -16px 40px rgba(0,0,0,0.7), 0 18px 70px -18px rgba(224,79,44,0.6); }
-@keyframes lpBreathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.025); } }
-/* incubation core glow */
-.lp-core::before { content: ""; position: absolute; width: 36%; height: 36%; border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,210,170,0.95), rgba(224,79,44,0.5) 55%, transparent 72%);
-  filter: blur(2px); animation: lpEmber 7s ease-in-out infinite; }
-@keyframes lpEmber { 0%,100% { opacity: 0.7; transform: scale(0.92); } 50% { opacity: 1; transform: scale(1.08); } }
-/* meridian seam — where it will crack */
-.lp-core::after { content: ""; position: absolute; top: 8%; bottom: 8%; width: 1px; left: 50%;
-  background: linear-gradient(to bottom, transparent, rgba(255,200,170,0.35) 18%, rgba(255,200,170,0.45) 50%, rgba(255,200,170,0.35) 82%, transparent);
-  transform: translateX(-0.5px); }
-/* wax seal pressed on the core */
-.lp-core-seal { position: relative; z-index: 4; }
-.lp-core-seal .wax { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4)); }
-.lp-core-time { position: relative; z-index: 4; font-family: "IBM Plex Mono", monospace; font-weight: 500;
-  font-size: clamp(11px, 1.1vw, 13px); letter-spacing: 0.14em; color: rgba(255,224,198,0.92);
-  font-variant-numeric: tabular-nums; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+/* Countdown overlay — centered on the artifact */
+.lp-orb-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+  will-change: opacity;
+}
+.lp-orb-overlay .lp-core-time {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: clamp(1.1rem, 1.8vw, 1.6rem);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: rgba(250, 247, 242, 0.92);
+  text-shadow: 0 0 18px rgba(0, 0, 0, 0.45), 0 0 2px rgba(0, 0, 0, 0.6);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
 
-/* quiet readouts around the object */
-.lp-obj-readout { position: absolute; font-family: "IBM Plex Mono", monospace; font-weight: 500;
-  font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); white-space: nowrap; }
-.lp-obj-id { top: 2%; left: 50%; transform: translateX(-50%); }
-.lp-obj-status { bottom: 2%; left: 50%; transform: translateX(-50%); color: var(--hot); }
+/* State labels — crossfade as scroll progress advances */
+.lp-artifact-state-labels {
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  height: 20px;
+  z-index: 5;
+}
+.lp-state-label {
+  position: absolute;
+  opacity: 0;
+  transition: opacity 400ms var(--ease);
+  color: var(--ink-muted);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.lp-state-label.is-active {
+  opacity: 1;
+}
+.lp-state-label[data-state="sealed"] { color: var(--sealed); }
+.lp-state-label[data-state="incubating"] { color: var(--hot); }
+.lp-state-label[data-state="hatching"] { color: var(--hot); }
+.lp-state-label[data-state="public"] { color: var(--verdant); }
+
+/* Progress bar — subtle horizontal line under the artifact */
+.lp-artifact-progress {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(112px, 42%);
+  height: 1px;
+  background: var(--rule);
+  overflow: hidden;
+  z-index: 5;
+}
+.lp-artifact-progress-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--sealed), var(--hot) 50%, var(--verdant));
+  transform-origin: left;
+  transition: transform 100ms linear;
+}
+
+/* Responsive — narrower on small screens, maintaining 5:6 aspect ratio */
+@media (max-width: 420px) {
+  .lp-objectwrap {
+    width: min(62vw, 260px);
+  }
+}
+
+@media (max-width: 760px) {
+  .lp-hero { min-height: 245svh; }
+  .lp-hero-frame { width: 100%; overflow-x: clip; padding: 52px 18px 64px; }
+  .lp-hero .lp-d1 { font-size: clamp(42px, 15vw, 62px); line-height: 0.94; }
+  .lp-hero-line { max-width: 350px; }
+  .lp-hero-eyebrow { margin-bottom: 12px; font-size: 10px; letter-spacing: 0.05em; }
+  .lp-objectwrap { width: min(56vw, 224px); margin-bottom: 8px; }
+  .lp-artifact-state-labels { bottom: 18px; }
+  .lp-artifact-progress { bottom: 4px; width: min(92px, 42%); }
+  .lp-hero-sub { max-width: 330px; margin-top: 14px; font-size: 15px; line-height: 24px; }
+  .lp-hero-ctas { width: min(100%, 340px); gap: 8px; margin-top: 16px; }
+  .lp-hero-ctas .btn { flex: 1 1 154px; min-width: 0; padding-inline: 14px; }
+  .lp-hero-readout { margin-top: 16px; font-size: 10px; gap: 6px 10px; }
+  .lp-scrollcue { bottom: 12px; gap: 5px; font-size: 10px; }
+  .header-inner { padding-inline: 18px; gap: 12px; }
+  .header-right { gap: 8px; }
+}
+
+@media (max-width: 420px) {
+  .lp-hero-frame { padding-inline: 14px; }
+  .lp-hero .lp-d1 { font-size: clamp(40px, 13.4vw, 52px); }
+  .lp-hero-line { max-width: 318px; }
+  .lp-objectwrap { width: min(54vw, 206px); }
+  .lp-hero-sub { max-width: 310px; }
+  .lp-hero-ctas { max-width: 260px; flex-direction: column; }
+  .lp-hero-ctas .btn { width: 100%; flex-basis: auto; }
+  .btn-connect { width: 38px; padding-inline: 0; justify-content: center; overflow: hidden; }
+  .btn-connect svg { margin-inline: 0; }
+  .btn-connect:not(.connected) { color: transparent; gap: 0; }
+  .btn-connect:not(.connected) svg { color: var(--ink); }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .lp-orbit, .lp-core, .lp-core::before { animation: none !important; }
+  .lp-livedot { animation: none !important; }
+  .lp-scrollcue svg { animation: none !important; }
 }
 
 /* ============================================================
@@ -179,6 +261,53 @@
   .lp-chapter--flip .lp-chapter-copy { order: 0; }
   .lp-spine { bottom: 60px; }
 }
+
+/* ============================================================
+   Mobile inner-padding overrides.
+   Every landing inner container uses `padding: 0 32px` for desktop. On
+   narrow viewports drop to 18px (and 14px under 380px) so children can
+   never push past the viewport edge and create a horizontal scroll
+   surface. Pairs with `html/body/#root { overflow-x: hidden + clip }`
+   in styles.css.
+   ============================================================ */
+@media (max-width: 600px) {
+  .lp-manifesto-inner,
+  .lp-life-head,
+  .lp-chapters,
+  .lp-proof-head,
+  .lp-proof-sub,
+  .lp-proof-grid,
+  .lp-proof-resolved,
+  .lp-proof-foot,
+  .lp-closing-inner,
+  .lp-trust-inner { padding-left: 18px; padding-right: 18px; }
+  .lp-proof-resolved { padding-top: 28px; }
+  .lp-hero-frame { padding-left: 18px; padding-right: 18px; }
+}
+@media (max-width: 380px) {
+  .lp-manifesto-inner,
+  .lp-life-head,
+  .lp-chapters,
+  .lp-proof-head,
+  .lp-proof-sub,
+  .lp-proof-grid,
+  .lp-proof-resolved,
+  .lp-proof-foot,
+  .lp-closing-inner,
+  .lp-trust-inner { padding-left: 14px; padding-right: 14px; }
+  .lp-hero-frame { padding-left: 14px; padding-right: 14px; }
+}
+
+/* Belt-and-suspenders: prevent any landing section's children from causing
+ * horizontal overflow. Decorative absolutely-positioned elements like
+ * `.lp-closing-echo` (760px wide) stay clipped to their section.
+ *
+ * Critical for iOS Safari where `overflow-x: clip` on body alone
+ * sometimes lets transformed children escape and create the shift-left
+ * dead space the user reported. */
+.lp-hero, .lp-manifesto, .lp-lifecycle, .lp-proof, .lp-trust, .lp-closing,
+.lp-chapter, .lp-hero-frame { overflow-x: clip; }
+.footer-wordmark-wrap { max-width: 100vw; }
 
 /* ---- Chapter visuals ---- */
 .lp-vis { position: relative; }

@@ -309,6 +309,20 @@ function ConnectWallet() {
   const [address, setAddress] = useState(/** @type {string | null} */ (null));
   const [pendingSiwe, setPendingSiwe] = useState(false);
   const navigate = useNavigate();
+  const menuRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function onDown(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("touchstart", onDown);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onDown);
+    };
+  }, [open]);
 
   const { openConnectModal } = useConnectModal();
   const { address: wagmiAddress, isConnected } = useAccount();
@@ -410,24 +424,21 @@ function ConnectWallet() {
   }
   const short = address.slice(0, 6) + "…" + address.slice(-4);
   return (
-    <div style={{ position: "relative" }}>
+    <div ref={menuRef} style={{ position: "relative" }}>
       <button className="btn-connect connected" onClick={() => setOpen((o) => !o)}>
         <span className="wallet-dot" />
         <span className="mono-sm" style={{ textTransform: "none" }}>{short}</span>
         <Icons.ChevronDown size={14} />
       </button>
       {open && (
-        <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: "var(--bg-overlay)", border: "1px solid var(--rule)", borderRadius: "var(--r-sm)", minWidth: 180, padding: 4, boxShadow: "var(--shadow-sm)", zIndex: 60 }}>
-          <button className="label-md" onClick={() => { navigate("/console#/publisher"); setOpen(false); }}
-            style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 10px", border: 0, background: "transparent", color: "var(--ink)", borderRadius: 4 }}>
+        <div className="wallet-menu">
+          <button className="label-md" onClick={() => { navigate("/console#/publisher"); setOpen(false); }}>
             Dashboard
           </button>
-          <button className="label-md" onClick={() => { navigator.clipboard?.writeText(address); setOpen(false); }}
-            style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 10px", border: 0, background: "transparent", color: "var(--ink)", borderRadius: 4 }}>
+          <button className="label-md" onClick={() => { navigator.clipboard?.writeText(address); setOpen(false); }}>
             Copy address
           </button>
-          <button className="label-md" onClick={onDisconnect}
-            style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 10px", border: 0, background: "transparent", color: "var(--ink)", borderRadius: 4 }}>
+          <button className="label-md" onClick={onDisconnect}>
             Disconnect
           </button>
         </div>

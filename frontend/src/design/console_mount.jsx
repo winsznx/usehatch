@@ -1,6 +1,6 @@
 import React from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Rail, TopBar, useRoute } from "./console_shell.jsx";
+import { Rail, RailDrawer, TopBar, useRoute } from "./console_shell.jsx";
 import { Compose } from "./view_compose.jsx";
 import { HatchDetail } from "./view_hatch.jsx";
 import { Publisher, TrackRecord } from "./view_publisher.jsx";
@@ -27,10 +27,13 @@ export function ConsoleApp() {
   const [theme, setTheme] = useStateApp("light");
   const [route, go] = useRoute();
   const [nearestState, setNearestState] = useStateApp("incubating");
+  const [drawerOpen, setDrawerOpen] = useStateApp(false);
 
   useEffectApp(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
+
+  useEffectApp(() => { setDrawerOpen(false); }, [route]);
 
   const VIEWS = {
     timeline: Timeline,
@@ -46,10 +49,12 @@ export function ConsoleApp() {
   return (
     <div className="console">
       <Rail route={route} go={go} />
+      <RailDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} route={route} go={go} />
       <div className="workspace">
         <TopBar route={route} theme={theme}
           onToggleTheme={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
-          nearestState={nearestState} />
+          nearestState={nearestState}
+          onOpenDrawer={() => setDrawerOpen(true)} />
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={route}

@@ -32,7 +32,9 @@ export function App() {
       <Header theme={theme} onToggleTheme={() => setTheme((t) => (t === "light" ? "dark" : "light"))} />
       <div className="lp-shell">
         <main>
-          {/* Hero: unpinned. The opening shot scrolls naturally. */}
+          {/* Hero: owns its own GSAP ScrollTrigger pin internally
+           * (the artifact scroll narrative). Chapter wraps it
+           * without pinning or revealing. */}
           <Chapter pin={false} reveal={false} depth={0} id="ch-hero"><Hero /></Chapter>
 
           {/* Manifesto: the first held scene. Patient hold; gentle depth. */}

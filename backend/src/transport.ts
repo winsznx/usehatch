@@ -1,3 +1,16 @@
+import { http, fallback, type Transport } from "viem";
+
+/** Build a ranked viem transport from `RPC_URL` + comma-separated `RPC_URL_FALLBACKS`.
+ *  Falls back to a single-RPC transport when no fallbacks are configured. */
+export function aeneidTransport(): Transport {
+  const primary = process.env.RPC_URL;
+  if (!primary) throw new Error("RPC_URL env not set");
+  const fallbacks = (process.env.RPC_URL_FALLBACKS ?? "")
+    .split(",").map((s) => s.trim()).filter(Boolean);
+  if (!fallbacks.length) return http(primary);
+  return fallback([http(primary), ...fallbacks.map((u) => http(u))], { rank: true, retryCount: 2 });
+}
+
 /** Install a global fetch interceptor that synthesizes a MethodNotSupported (-32601)
  *  response for any JSON-RPC `eth_fillTransaction` call.
  *

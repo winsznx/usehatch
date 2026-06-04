@@ -15,9 +15,14 @@ function readUrl(value: string | undefined, fallback: string): string {
   return ((value && value.trim()) || fallback).replace(/\/+$/, "");
 }
 
+function readUrls(value: string | undefined): string[] {
+  return (value ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+}
+
 export const config = {
   backendUrl: readUrl(env.VITE_BACKEND_URL, "http://127.0.0.1:4011"),
   rpcUrl: readUrl(env.VITE_RPC_URL, "https://aeneid.storyrpc.io"),
+  rpcUrlFallbacks: readUrls(env.VITE_RPC_URL_FALLBACKS),
   chainId: Number(env.VITE_CHAIN_ID ?? 1315),
 
   contracts: {

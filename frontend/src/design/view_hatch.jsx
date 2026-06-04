@@ -1,6 +1,8 @@
 import React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { buyHatch } from "@usehatch/sdk";
+import { buyHatch, buyHatchCrossChain, payRoyaltyOnBehalf } from "@usehatch/sdk";
+import { parseEther } from "viem";
+import { CrossChainSelector, resolveCrossChainSource } from "./cross_chain_selector.jsx";
 import { BigCountdown, HatchOrb } from "./console_orb.jsx";
 import { Icons } from "./icons.jsx";
 import { Avatar, Button, StatusPill, WaxSealCracked, formatPrice, hatchModeLabel, lc, pubDisplay } from "./primitives.jsx";
@@ -15,6 +17,7 @@ import { useSiweSession } from "../lib/siwe.js";
 import { readHatchInBrowser } from "../lib/read.js";
 import { api } from "../api.js";
 import { qk } from "../lib/queries.js";
+import { DisputeModal } from "./dispute_modal.jsx";
 /* Hatch Console — Hatch Detail. The product. */
 const { useState: useStateH, useEffect: useEffectH } = React;
 
@@ -82,6 +85,7 @@ function Gate({ hatch, pub }) {
   const { session } = useSiweSession();
   const wiring = useStoryWiring();
   const followsQ = useFollowsQuery(session?.wallet);
+  const [disputeOpen, setDisputeOpen] = useStateH(false);
   const revealMs = new Date(hatch.revealAt).getTime();
   const disp = pubDisplay(pub);
   const priceLabel = formatPrice(hatch.perHatchPriceWei);
@@ -89,6 +93,7 @@ function Gate({ hatch, pub }) {
   const isFollowing = (followsQ.data ?? []).some((r) => lc(r) === lc(hatch.publisherRootIp));
   const [buyResult, setBuyResult] = React.useState(/** @type {null | { ok: boolean; msg: string; tx?: string }} */ (null));
   const [subResult, setSubResult] = React.useState(/** @type {null | { ok: boolean; msg: string; tx?: string }} */ (null));
+  const [buySrcChain, setBuySrcChain] = useStateH("native");
 
   const followMut = useMutation({
     mutationFn: async () => {
@@ -103,8 +108,32 @@ function Gate({ hatch, pub }) {
 
   const buyMut = useMutation({
     mutationFn: async () => {
-      if (!wiring) throw new Error("Connect wallet on Story Aeneid first");
+      if (!wiring) throw new Error("Connect wallet on Story first");
       if (!hatch.perHatchTermsId) throw new Error("This hatch has no per-hatch terms");
+
+      // Cross-chain path (mainnet only — CrossChainSelector hides on testnet).
+      const src = resolveCrossChainSource(buySrcChain);
+      if (src) {
+        const priceWip = hatch.perHatchPriceWei ? BigInt(hatch.perHatchPriceWei) : parseEther("0.01");
+        // Quote a rough src amount with 20% headroom. Production would call
+        // deBridge's `/quote` endpoint first to get a precise figure.
+        const srcAmount = priceWip * 120n / 100n;
+        const r = await buyHatchCrossChain({
+          src,
+          walletClient: wiring.walletClient,
+          srcAmount,
+          signalIpId: hatch.signalIpId,
+          licenseTermsId: BigInt(hatch.perHatchTermsId),
+          receiver: wiring.account.address,
+          licensingModule: wiring.hatchConfig.chain.licensingModule,
+          licenseTemplate: wiring.hatchConfig.chain.pilTemplate,
+          wipAddress: wiring.hatchConfig.chain.wip,
+          dstAmountWip: priceWip,
+        });
+        return { licenseTokenId: 0n, txHash: r.srcTxHash, crossChain: true, orderId: r.dlnOrderId };
+      }
+
+      // Native Story path.
       return await buyHatch({
         storyClient: wiring.storyClient,
         signalIpId: hatch.signalIpId,
@@ -114,7 +143,10 @@ function Gate({ hatch, pub }) {
       });
     },
     onSuccess: (r) => {
-      setBuyResult({ ok: true, msg: `License minted (#${r.licenseTokenId.toString()})`, tx: r.txHash });
+      const msg = r.crossChain
+        ? `Bridge order submitted (${r.orderId?.slice(0, 8)}…) — License lands on Story in a few minutes.`
+        : `License minted (#${r.licenseTokenId.toString()})`;
+      setBuyResult({ ok: true, msg, tx: r.txHash });
       if (session?.wallet) qc.invalidateQueries({ queryKey: qk.myLicenses(session.wallet) });
     },
     onError: (e) => setBuyResult({ ok: false, msg: e instanceof Error ? e.message : String(e) }),
@@ -161,15 +193,18 @@ function Gate({ hatch, pub }) {
 
           <div className="gate-ctas">
             {canBuy && (
-              <Button
-                variant="primary" size="lg"
-                disabled={buyDisabled}
-                onClick={() => { setBuyResult(null); buyMut.mutate(); }}
-                title={!wiring ? "Connect wallet on Story Aeneid" : !hatch.perHatchTermsId ? "No per-hatch terms registered for this hatch" : ""}
-              >
-                {buyMut.isPending ? "Minting…" : "Buy this hatch"}
-                {priceLabel && <span className="hatch-meta-mono" style={{ color: "inherit" }}>{priceLabel}</span>}
-              </Button>
+              <>
+                <Button
+                  variant="primary" size="lg"
+                  disabled={buyDisabled}
+                  onClick={() => { setBuyResult(null); buyMut.mutate(); }}
+                  title={!wiring ? "Connect wallet on Story" : !hatch.perHatchTermsId ? "No per-hatch terms registered for this hatch" : ""}
+                >
+                  {buyMut.isPending ? (buySrcChain === "native" ? "Minting…" : "Bridging…") : "Buy this hatch"}
+                  {priceLabel && <span className="hatch-meta-mono" style={{ color: "inherit" }}>{priceLabel}</span>}
+                </Button>
+                <CrossChainSelector value={buySrcChain} onChange={setBuySrcChain} label="Pay from" />
+              </>
             )}
             {canSubscribe && (
               <Button
@@ -188,6 +223,14 @@ function Gate({ hatch, pub }) {
               title={!session?.token ? "Sign in first" : isFollowing ? "Unfollow" : "Follow publisher"}
             >
               {followMut.isPending ? "…" : isFollowing ? "Following" : "Follow"}
+            </Button>
+            <Button
+              variant="outline" size="lg"
+              disabled={!session?.token || !wiring}
+              onClick={() => setDisputeOpen(true)}
+              title={!session?.token ? "Sign in first" : !wiring ? "Connect wallet on Story Aeneid" : "Raise an on-chain dispute via UMA"}
+            >
+              Dispute
             </Button>
           </div>
 
@@ -218,6 +261,15 @@ function Gate({ hatch, pub }) {
           <I.Lock size={13} /> Encrypted on Story CDR <span className="trust-sep">·</span> Auto-reveals at {new Date(hatch.revealAt).toLocaleString()} <span className="trust-sep">·</span> nobody can pre-open
         </div>
       </div>
+
+      <DisputeModal
+        open={disputeOpen}
+        onClose={() => setDisputeOpen(false)}
+        targetIpId={hatch.signalIpId}
+        targetLabel={hatch.title ?? `Hatch #${hatch.uuid}`}
+        publisherRootIp={hatch.publisherRootIp}
+        hatchUuid={hatch.uuid}
+      />
     </>
   );
 }
@@ -232,6 +284,7 @@ function ReadingExperience({ hatch, pub, reveal, revealLoading, revealError }) {
   const [browserRead, setBrowserRead] = React.useState(/** @type {null | { text: string; media: any[]; reader: string; txHash: string }} */ (null));
   const [poolRead, setPoolRead] = React.useState(/** @type {null | { text: string; media: any[]; reader: string; txHash: string }} */ (null));
   const [readError, setReadError] = React.useState(/** @type {string | null} */ (null));
+  const [disputeOpen, setDisputeOpen] = React.useState(false);
 
   // Browser-side read with the user's wagmi wallet. Per the CDR diagram, the
   // reader's keypair is on the wire and validators deliver partial decryptions
@@ -280,6 +333,9 @@ function ReadingExperience({ hatch, pub, reveal, revealLoading, revealError }) {
         <span className="dot">·</span>
         <span className="rt">VAULT #{hatch.uuid}</span>
       </div>
+
+      <TipHatchSignal hatch={hatch} wiring={wiring} />
+
 
       <div className="read-body">
         {revealLoading && <p className="ink-soft">Decrypting content…</p>}
@@ -331,8 +387,75 @@ function ReadingExperience({ hatch, pub, reveal, revealLoading, revealError }) {
           <I.Hash size={13} /> Vault #{hatch.uuid} <span className="trust-sep">·</span> sealed {new Date(hatch.embargoStart).toLocaleString()}
           <span className="trust-sep">·</span> auto-revealed by Story CDR <span className="trust-sep">·</span>
           <a href={`https://aeneid.storyscan.io/address/${hatch.publisherRootIp}`} target="_blank" rel="noreferrer" style={{ color: "var(--hot)", display: "inline-flex", alignItems: "center", gap: 4 }}>view on Storyscan <I.ExternalLink size={11} /></a>
+          <span className="trust-sep">·</span>
+          <button
+            onClick={() => setDisputeOpen(true)}
+            disabled={!session?.token || !wiring}
+            style={{ background: "transparent", border: 0, padding: 0, color: "var(--hot)", cursor: !session?.token || !wiring ? "not-allowed" : "pointer" }}
+            title={!session?.token ? "Sign in first" : !wiring ? "Connect wallet on Story Aeneid" : "Raise an on-chain dispute via UMA"}
+          >
+            dispute this
+          </button>
         </div>
       </div>
+
+      <DisputeModal
+        open={disputeOpen}
+        onClose={() => setDisputeOpen(false)}
+        targetIpId={hatch.signalIpId}
+        targetLabel={hatch.title ?? `Hatch #${hatch.uuid}`}
+        publisherRootIp={hatch.publisherRootIp}
+        hatchUuid={hatch.uuid}
+      />
     </article>
+  );
+}
+
+/* Tip the hatch's signal IP. Story SDK auto-wraps IP→WIP and auto-approves
+ * the RoyaltyModule, so a connected wallet with native IP balance can tip
+ * without any other setup. Tips propagate to the publisher root via LAP. */
+function TipHatchSignal({ hatch, wiring }) {
+  const [amount, setAmount] = useStateH("0.01");
+  const [result, setResult] = useStateH(/** @type {null | { ok: boolean; msg: string; tx?: string }} */ (null));
+
+  const tipMut = useMutation({
+    mutationFn: async () => {
+      if (!wiring) throw new Error("Connect wallet on Story Aeneid first");
+      let amountWei;
+      try { amountWei = parseEther(amount || "0"); }
+      catch { throw new Error("Invalid amount — use a decimal like 0.01"); }
+      if (amountWei <= 0n) throw new Error("Amount must be > 0");
+      return await payRoyaltyOnBehalf({
+        config: { ...wiring.hatchConfig, storage: /** @type {any} */ (null) },
+        storyClient: wiring.storyClient,
+        receiverIpId: hatch.signalIpId,
+        amountWip: amountWei,
+        txExecutor: wiring.txExecutor ?? undefined,
+      });
+    },
+    onSuccess: (r) => setResult({ ok: true, msg: `Tipped ${amount} WIP — routes to publisher via LAP`, tx: r.txHash }),
+    onError: (e) => setResult({ ok: false, msg: e instanceof Error ? e.message : String(e) }),
+  });
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "12px 0", flexWrap: "wrap" }}>
+      <span className="body-sm ink-soft">Tip the author</span>
+      <input className="input" type="number" min="0" step="0.001"
+        value={amount} onChange={(e) => setAmount(e.target.value)}
+        style={{ width: 90, padding: "6px 8px", fontSize: 12 }} placeholder="0.01" />
+      <span className="mono-sm ink-soft">WIP</span>
+      <Button variant="outline" size="sm"
+        disabled={!wiring || tipMut.isPending}
+        onClick={() => { setResult(null); tipMut.mutate(); }}
+        title={!wiring ? "Connect wallet on Story Aeneid" : wiring.txExecutor ? "Sponsored via Privy smart wallet" : ""}>
+        {tipMut.isPending ? "Tipping…" : "Send tip"}
+      </Button>
+      {result && (
+        <span className={result.ok ? "verdant" : "hot"} style={{ fontSize: 12 }}>
+          {result.msg}
+          {result.tx && <> · <a target="_blank" rel="noreferrer" style={{ color: "var(--hot)" }} href={`https://aeneid.storyscan.io/tx/${result.tx}`}>tx</a></>}
+        </span>
+      )}
+    </div>
   );
 }

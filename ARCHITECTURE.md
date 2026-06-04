@@ -90,6 +90,60 @@ The reader's keypair stays on the wire. The server never holds the secret.
 
 For the default read path (`via: "wallet"`, signed by wagmi), the server never sees the manifest or the decrypted media. The backend only serves opaque ciphertext from Supabase.
 
+## Protocol surface
+
+The architecture above is the core. The protocol surface below is everything Hatch exposes on top of it without changing the trust model.
+
+### Foundation
+
+- **IPA metadata with SHA-256 hashes.** Publisher and per-hatch metadata JSON is content-hashed before upload. `ipMetadataHash` and `nftMetadataHash` are computed from the canonicalised payload so the on-chain pointer is verifiable against the bytes the storage layer returned.
+- **CDR retry wrapper.** `cdr.allocate`, `cdr.write`, and `cdr.accessCDR` are wrapped in a retry with backoff that distinguishes transient transport errors from contract reverts. Reverts surface as `HatchError` immediately; transport errors retry with jitter up to a bounded ceiling.
+- **RPC fallback transport.** The viem transport for Story is a ranked `fallback([primary, ...secondaries])`. RPC degradations stop taking the indexer and the composer down together. Backend workers and the SDK share the same transport factory so failover is identical end to end.
+- **PIL flavor switch.** `createHatch` and `createPublisher` accept a `pilFlavor` of `commercialRemix` (default), `commercialUse`, `nonCommercialSocialRemixing`, or `creativeCommonsAttribution`. The flavor lands in PIL terms at attach time; downstream royalty paths follow Story's flavor rules without any custom branching.
+- **Mainnet config.** `sdk/src/config.ts` exports `MAINNET` alongside `AENEID`. Most Story core addresses are identical across both. See [docs/mainnet.md](./docs/mainnet.md) for the flip checklist.
+- **WIP helpers.** `wrapNativeToWip`, `unwrapWipToNative`, `approveWip`, and `getWipBalance` are shared utilities used by commerce, royalty claim, dispute bonding, and tipping. Allowances are scoped per spender and re checked before each call.
+
+### Auth and sponsored execution
+
+- **Privy provider stack.** The frontend mounts `PrivyProvider` above wagmi when `VITE_PRIVY_APP_ID` is set. Privy stays optional, so SIWE plus wagmi keeps working unchanged when the env var is absent. Privy supplies email login, embedded wallets, and a smart wallet handle.
+- **SmartWalletsProvider with paymaster.** `SmartWalletsProvider` is configured with a Pimlico `paymasterContext` so user operations can be sponsored. The paymaster policy id is per chain; mainnet and Aeneid each carry their own.
+- **`TxExecutor` interface.** Every SDK call that previously took a `walletClient` now also accepts a `TxExecutor`, a minimal `{ sendTransaction({ to, data, value }) }` shape. The default executor is the wagmi wallet; the Privy smart wallet executor routes through the bundler and applies the paymaster. Commerce, royalty payment, dispute raise, and grouping all consume the executor unchanged. Sponsorship is transparent to the call site.
+
+### Publisher dashboard
+
+- **Earnings and Claim royalties.** The publisher dashboard reads the claimable balance from the LAP vault and exposes a Claim button that fires `claimAllRevenue` through the active wallet. The backend `GET /publishers/:root/claimable` route powers the live balance display.
+- **Tip buttons.** Publisher list cards and hatch detail pages carry a Tip button. The control collects an amount in WIP (auto wrap if the user holds none), calls `payRoyaltyOnBehalf`, and writes through the royalty module so it flows into the LAP vault rather than a custodial pot.
+- **Delegates panel.** Grant or revoke editor wallets through Story's `AccessController`. Permissions auto revoke on IP ownership transfer.
+- **Wrap IP to WIP widget.** Replaces the older `cast send` step in publisher onboarding and tipping. One widget, one approval, one balance read.
+
+### Compose
+
+- **PIL flavor radio.** Four flavors visible in the composer. The selected flavor lands in the per hatch PIL terms.
+- **IPA metadata fields.** Description, creators, and key attributes feed directly into `createHatch`. SHA-256 hashes are computed at submit time and recorded on chain.
+
+### Disputes (UMA backed)
+
+- **SDK: `raiseDispute`, `cancelDispute`.** Wrap Story's DisputeModule. The bond posts in WIP, the evidence pointer attaches as a CID, and the dispute id returns synchronously. Cancellation is gated by the protocol's timing rules; the SDK surfaces the revert reason verbatim.
+- **Backend: `disputes` table.** Keyed by `storyDisputeId` with bond amount, evidence CID, judgement, and status. Listed on `/disputes` and aggregated on `/publishers/:root/dispute-status`.
+- **Indexer events.** `DisputeRaised`, `DisputeJudgementSet`, `DisputeCancelled`, and `DisputeResolved` are subscribed alongside the existing IPA and license events.
+- **DisputeModal.** Mounted on publisher profile and hatch detail. Collects evidence and bond, shows the live dispute list with judgement state, and offers Cancel when the connected wallet raised the dispute.
+
+### Datasets (GroupingModule)
+
+- **SDK: `createGroup`, `addToGroup`.** Group hatches must use LRP (`royaltyPolicyLrp`) because GroupingModule rejects LAP. The SDK forces LRP at attach time so a misconfigured composer cannot break the group.
+- **Backend: `groups` and `group_members`.** Group metadata keyed by `groupIpId`, membership rows by `(groupIpId, memberIpId)`. Powers `/groups` and `/groups/:groupId`.
+- **Indexer events.** `IPGroupRegistered`, `AddedIpToGroup`, and `RemovedIpFromGroup` drive both tables.
+- **Dataset composer mode.** A toggle in `view_compose` switches from single hatch to dataset bundle. Each row is one hatch; submit runs `createGroup` then loops `createHatch` then `addToGroup`. Buyers purchase the group license once and read every member through the same entitlement path.
+
+### Cross chain (mainnet only)
+
+- **SDK: `buyHatchCrossChain`, `tipCrossChain`.** Both go through deBridge DLN. The SDK builds the order with a Story-side dlnHook, submits the source chain transaction, and returns the deBridge order id. The Story-side fill triggers the actual `mintLicenseTokens` or `payRoyaltyOnBehalf`.
+- **Aeneid is not supported by deBridge.** The cross chain selector in the UI auto hides on testnet. On mainnet it lists the deBridge supported source chains (Base, Optimism, Arbitrum, Ethereum) and shows quote and slippage before the user signs the source chain tx.
+
+### Mainnet readiness
+
+> Most Story core addresses are identical across Aeneid and Mainnet; only `IpRoyaltyVaultImpl`, `IPAccountImpl`, and `SPGNFTImpl` differ. The four Hatch contracts — `HatchConditionV2_1`, `HatchSubscriptionPass`, `HatchOutcomeOracle`, `HatchPublisherRegistry` — need a fresh deploy on mainnet from the operator wallet. The `MAINNET` config constant already carries the Story-side addresses; the four Hatch slots flip from `0x0` to deployed once the operator runs the deploy script.
+
 ## `@usehatch/sdk` — the reusable client we built
 
 **Published on npm:** <https://www.npmjs.com/package/@usehatch/sdk> · install with `pnpm add @usehatch/sdk`.
@@ -172,11 +226,11 @@ A hatch moves through eight stages from the moment a publisher hits **Seal** to 
 - **Sessions survive restart.** SIWE state lives in Postgres (`siwe_sessions`), not a process-local Map. A backend restart or horizontal scale-out doesn't log anyone out. → [`backend/src/db/schema.ts`](backend/src/db/schema.ts)
 - **Storage is opaque.** The Supabase bucket holds only ciphertext. The per-file AES keys live exclusively inside the encrypted manifest, which lives inside the CDR vault, which is gated by the on-chain condition. Full DB + bucket access does not decrypt anything. → [`sdk/src/manifest.ts`](sdk/src/manifest.ts)
 
-### Surfaces still being built (named, not hidden)
+### Surfaces now shipped (previously "still being built")
 
-- **Royalty claim CTA.** Royalties accrue automatically via LAP — the vault is collecting them — but the publisher dashboard does not yet expose a `royalty.claim` action. Story SDK supports it; adding the button is mechanical work.
-- **Dataset-level bundle purchase.** The IP graph already composes (every hatch is a derivative of the publisher root), so "buy a curated set in one tx" is enabled at the chain level. The UI today sells per-hatch and per-subscription only.
-- **Anonymous-lent read UI.** The SDK path for "subscriber lends pass to a fresh ephemeral, ephemeral reads, pass returned" is implemented and proven by the round-trip test ([`sdk/src/read.ts:87-128`](sdk/src/read.ts#L87)). The browser modal that walks a subscriber through the lend / read / unlend dance is its own focused piece of UX.
+- **Royalty claim CTA — implemented.** The Earnings + Claim royalties button on the Command Center reads claimable balances from the LAP vault per publisher root and fires `claimAllRevenue` through the active wallet.
+- **Dataset-level bundle purchase — implemented.** `createGroup` and `addToGroup` (LRP forced), `groups` plus `group_members` tables, GroupingModule indexer events, and the dataset composer mode in `view_compose` close the loop end to end. Buyers purchase the group license once and read every member through the same entitlement path.
+- **Anonymous-lent read UI — implemented.** The lend / read / unlend modal is in the console; the same SDK path proven by the round-trip test ([`sdk/src/read.ts:87-128`](sdk/src/read.ts#L87)) now drives the UX for subscribers reading via a fresh ephemeral wallet.
 
 ## End-to-end user journeys
 

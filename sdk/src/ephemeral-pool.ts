@@ -1,9 +1,16 @@
 import {
-  createPublicClient, createWalletClient, http, parseEther, formatEther,
-  type PublicClient, type WalletClient, type Chain, type Address, type Hex,
+  createPublicClient, createWalletClient, http, fallback, parseEther, formatEther,
+  type PublicClient, type WalletClient, type Chain, type Transport, type Address, type Hex,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { HatchError } from "./errors.js";
+
+/** Build a viem transport that ranks N RPC endpoints by health and retries on
+ *  transient failures. Primary first, then `fallbacks` in order. */
+function buildTransport(primary: string, fallbacks?: string[]): Transport {
+  if (!fallbacks?.length) return http(primary);
+  return fallback([http(primary), ...fallbacks.map((u) => http(u))], { rank: true, retryCount: 2 });
+}
 
 /** Optional Postgres-backed nonce-state store (restart-safe). The Pool stays
  *  swappable: pass any object implementing this; default is in-memory. */
@@ -44,6 +51,8 @@ export interface EphemeralPoolOpts {
   treasuryPk: Hex;
   chain: Chain;
   rpcUrl: string;
+  /** Optional secondary RPC endpoints, ranked by health and used as failovers. */
+  rpcUrlFallbacks?: string[];
   size: number;
   store?: PoolStateStore;
   /** override defaults */
@@ -96,8 +105,9 @@ export class EphemeralPool {
     this.treasuryAccount = privateKeyToAccount(opts.treasuryPk);
     this.chain = opts.chain;
     this.rpcUrl = opts.rpcUrl;
-    this.publicClient = createPublicClient({ chain: opts.chain, transport: http(opts.rpcUrl) }) as PublicClient;
-    this.treasuryWallet = createWalletClient({ account: this.treasuryAccount, chain: opts.chain, transport: http(opts.rpcUrl) });
+    const transport = buildTransport(opts.rpcUrl, opts.rpcUrlFallbacks);
+    this.publicClient = createPublicClient({ chain: opts.chain, transport }) as PublicClient;
+    this.treasuryWallet = createWalletClient({ account: this.treasuryAccount, chain: opts.chain, transport });
     this.store = opts.store ?? new InMemoryStore();
 
     this.REFILL_TO   = opts.refillTo   ?? parseEther("2");      // brief: 2 IP
@@ -112,7 +122,7 @@ export class EphemeralPool {
       const acct = privateKeyToAccount(pk);
       this.slots.push({
         pk, address: acct.address, account: acct,
-        wallet: createWalletClient({ account: acct, chain: opts.chain, transport: http(opts.rpcUrl) }),
+        wallet: createWalletClient({ account: acct, chain: opts.chain, transport: buildTransport(opts.rpcUrl, opts.rpcUrlFallbacks) }),
         busy: false, txTimestamps: [],
       });
     }

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @usehatch/sdk build",
+    "watchPatterns": [
+      "backend/**",
+      "sdk/**",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml"
+    ]
+  },
+  "deploy": {
+    "startCommand": "pnpm --filter @usehatch/backend exec tsx src/runner.ts",
+    "healthcheckPath": "/healthz",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}

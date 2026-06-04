@@ -34,10 +34,10 @@ function useRoute() {
 }
 export { useRoute };
 
-function Rail({ route, go }) {
+function RailContent({ route, go, asDrawer }) {
   const I = Icons;
   return (
-    <aside className="rail">
+    <>
       <Link to="/" className="rail-brand" title="Back to landing">
         <img className="rail-logo" src="/hatch-logo.jpg" alt="" aria-hidden="true" />
         <span className="wordmark-text">Hatch</span>
@@ -48,7 +48,7 @@ function Rail({ route, go }) {
           return (
             <a key={r.key} className={"rail-link" + (route === r.key ? " active" : "")}
               href={"#/" + r.key} onClick={(e) => { e.preventDefault(); go(r.key); }}>
-              <Ic size={17} />
+              <Ic size={asDrawer ? 17 : 20} />
               <span>{r.label}</span>
               {r.badge && <span className="badge">{r.badge}</span>}
             </a>
@@ -58,10 +58,43 @@ function Rail({ route, go }) {
       <FollowingList go={go} />
       <div className="rail-spacer"></div>
       <RailUser />
+    </>
+  );
+}
+
+function Rail({ route, go }) {
+  return (
+    <aside className="rail">
+      <RailContent route={route} go={go} asDrawer={false} />
     </aside>
   );
 }
 export { Rail };
+
+function RailDrawer({ open, onClose, route, go }) {
+  useEffectS(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKey(e) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <>
+      <div className="rail-drawer-backdrop" onClick={onClose} />
+      <aside className="rail-drawer" role="dialog" aria-modal="true">
+        <RailContent route={route} go={(k) => { onClose(); go(k); }} asDrawer={true} />
+      </aside>
+    </>
+  );
+}
+export { RailDrawer };
 
 function shortAddress(addr) {
   return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "Not signed in";
@@ -152,7 +185,7 @@ function TopBarBalance() {
   return <span className="topbar-balance"><span className="lbl">BAL</span> {formatted} IP</span>;
 }
 
-function TopBar({ route, theme, onToggleTheme, nearestState }) {
+function TopBar({ route, theme, onToggleTheme, nearestState, onOpenDrawer }) {
   const I = Icons;
   const r = ROUTES.find((x) => x.key === route) || ROUTES[0];
   const [now, setNow] = useStateS(new Date());
@@ -162,6 +195,11 @@ function TopBar({ route, theme, onToggleTheme, nearestState }) {
   return (
     <div className="topbar">
       <div className="topbar-left">
+        {onOpenDrawer && (
+          <button className="rail-hamburger" onClick={onOpenDrawer} aria-label="Open menu">
+            <I.Menu size={18} />
+          </button>
+        )}
         <span className="topbar-crumb">{r.crumb}</span>
       </div>
       <div className="topbar-right">

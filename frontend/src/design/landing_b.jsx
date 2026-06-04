@@ -193,6 +193,7 @@ function Footer() {
           <div>
             <div className="label-sm footer-col-h">Build</div>
             <div className="footer-links label-md">
+              {internal("/docs", "Docs")}
               {ext(GH_REPO, "GitHub")}
               {ext("https://www.npmjs.com/package/@usehatch/sdk", "SDK on npm")}
               {ext(`${GH_REPO}/blob/main/ARCHITECTURE.md`, "Architecture")}
@@ -210,7 +211,7 @@ function Footer() {
             <div className="label-sm footer-col-h">Connect</div>
             <div className="footer-links label-md">
               {ext("https://x.com/usehatch_", "X · @usehatch_")}
-              {ext("https://bsky.app/profile/winszn.bsky.social", "Bluesky")}
+              {ext("https://bsky.app/profile/usehatch.bsky.social", "Bluesky")}
             </div>
           </div>
         </div>

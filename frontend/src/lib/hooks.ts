@@ -9,8 +9,14 @@ import type { Address } from "viem";
 
 import {
   api,
+  type Dispute,
+  type DisputeStatus,
+  type DisputeStatusSummary,
+  type GroupMember,
+  type GroupSummary,
   type HatchStatus,
   type HatchSummary,
+  type PublisherClaimable,
   type PublisherMetrics,
   type PublisherSummary,
   type QueueItem,
@@ -49,6 +55,50 @@ export function usePublisherMetricsQuery(rootIp: Address | undefined) {
     queryKey: rootIp ? [...qk.publisher(rootIp), "metrics"] : qk.publishers(),
     queryFn: () => api.publisherMetrics(rootIp as Address),
     enabled: !!rootIp,
+  });
+}
+
+export function usePublisherClaimableQuery(rootIp: Address | undefined, claimer?: Address) {
+  return useQuery({
+    queryKey: rootIp ? [...qk.publisher(rootIp), "claimable", claimer ?? rootIp] : qk.publishers(),
+    queryFn: () => api.publisherClaimable(rootIp as Address, claimer),
+    enabled: !!rootIp,
+    staleTime: 15_000,
+  });
+}
+
+export function usePublisherDisputeStatusQuery(rootIp: Address | undefined) {
+  return useQuery({
+    queryKey: rootIp ? [...qk.publisher(rootIp), "dispute-status"] : qk.publishers(),
+    queryFn: () => api.publisherDisputeStatus(rootIp as Address),
+    enabled: !!rootIp,
+    staleTime: 30_000,
+  });
+}
+
+export function useGroupsQuery(opts?: { publisher?: Address; owner?: Address; limit?: number }) {
+  const key = ["groups", opts?.publisher ?? "", opts?.owner ?? "", opts?.limit ?? 50];
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => (await api.groups(opts)).groups,
+    staleTime: 30_000,
+  });
+}
+
+export function useGroupQuery(groupId: Address | undefined) {
+  return useQuery({
+    queryKey: groupId ? ["group", groupId.toLowerCase()] : ["group", "none"],
+    queryFn: () => api.group(groupId as Address),
+    enabled: !!groupId,
+  });
+}
+
+export function useDisputesQuery(opts?: { targetIpId?: Address; publisher?: Address; hatchUuid?: number; status?: DisputeStatus; limit?: number }) {
+  const key = ["disputes", opts?.targetIpId ?? "", opts?.publisher ?? "", opts?.hatchUuid ?? "", opts?.status ?? "", opts?.limit ?? 50];
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => (await api.disputes(opts)).disputes,
+    staleTime: 30_000,
   });
 }
 
@@ -102,4 +152,4 @@ export function useMyTimelineQuery() {
   });
 }
 
-export type { HatchSummary, PublisherSummary, TrackRecord, QueueItem, TimelineEvent, ResolutionRow, PublisherMetrics };
+export type { HatchSummary, PublisherSummary, TrackRecord, QueueItem, TimelineEvent, ResolutionRow, PublisherMetrics, PublisherClaimable, Dispute, DisputeStatus, DisputeStatusSummary, GroupSummary, GroupMember };

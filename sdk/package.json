@@ -1,6 +1,6 @@
 {
   "name": "@usehatch/sdk",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Hatch — programmable embargoes on Story CDR. Typed client wrapping @piplabs/cdr-sdk + @story-protocol/core-sdk.",
   "license": "MIT",
   "homepage": "https://github.com/winsznx/usehatch#readme",

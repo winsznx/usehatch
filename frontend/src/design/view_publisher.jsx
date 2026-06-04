@@ -1,12 +1,14 @@
 import React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createPublisher, stake } from "@usehatch/sdk";
-import { parseEther } from "viem";
+import { claimAllRevenue, createPublisher, setDelegate, stake, wrapNativeToWip } from "@usehatch/sdk";
+import { formatEther, isAddress, parseEther } from "viem";
 import { BigCountdown, Curve, HatchOrb, OrbPip } from "./console_orb.jsx";
 import { Icons } from "./icons.jsx";
 import { Avatar, Button, pubDisplay } from "./primitives.jsx";
 import {
   useHatchesQuery,
+  usePublisherClaimableQuery,
+  usePublisherDisputeStatusQuery,
   usePublisherMetricsQuery,
   usePublisherQuery,
   usePublisherResolutionsQuery,
@@ -15,6 +17,18 @@ import {
 import { useStoryWiring } from "../lib/story.js";
 import { useSiweSession } from "../lib/siwe.js";
 import { qk } from "../lib/queries.js";
+
+/* Pretty-format a wei amount in WIP with up to 4 decimals. */
+function fmtWip(wei) {
+  if (wei == null) return "—";
+  try {
+    const n = Number(formatEther(BigInt(wei)));
+    if (!Number.isFinite(n)) return "—";
+    if (n === 0) return "0";
+    if (n < 0.0001) return "< 0.0001";
+    return n.toFixed(4).replace(/\.?0+$/, "");
+  } catch { return "—"; }
+}
 /* Hatch Console — Publisher (Command Center) + Track Record (investor report).
    Identity-dominant. Content → reputation → outcomes → metrics. */
 const { useState: useStateP } = React;
@@ -135,18 +149,115 @@ function PublisherOnboard() {
    ============================================================ */
 function Publisher({ onNearestState }) {
   const I = Icons;
+  const qc = useQueryClient();
   const { session } = useSiweSession();
+  const wiring = useStoryWiring();
   React.useEffect(() => { onNearestState && onNearestState("incubating"); }, []);
   const { pub, isLoading } = useViewerPublisher();
   const root = pub?.publisherRootIp;
   const metricsQ = usePublisherMetricsQuery(root);
   const myHatchesQ = useHatchesQuery(root ? { publisher: root, limit: 50 } : undefined);
+  const claimableQ = usePublisherClaimableQuery(root, session?.wallet);
+  const disputeStatusQ = usePublisherDisputeStatusQuery(root);
   const disp = pubDisplay(pub);
   const allMy = myHatchesQ.data ?? [];
   const pending = allMy.filter((h) => h.status === "sealed" || h.status === "active");
   const recent = allMy.slice(0, 5);
   const tr = metricsQ.data?.trackRecord;
   const acc = tr?.weightedAccuracy ? Math.round(Number(tr.weightedAccuracy) * 100) : null;
+
+  const [claimResult, setClaimResult] = useStateP(/** @type {null | { ok: boolean; msg: string; tx?: string }} */ (null));
+  const [wrapAmount, setWrapAmount] = useStateP("0.1");
+  const [wrapResult, setWrapResult] = useStateP(/** @type {null | { ok: boolean; msg: string; tx?: string }} */ (null));
+  const [delegateAddr, setDelegateAddr] = useStateP("");
+  const [delegateScope, setDelegateScope] = useStateP(/** @type {"all" | "none"} */ ("all"));
+  const [delegateResult, setDelegateResult] = useStateP(/** @type {null | { ok: boolean; msg: string; tx?: string }} */ (null));
+
+  /* List of signal IPs (child IPs that route royalties up to publisher root via LAP).
+   * claimAllRevenue requires the full set; we use every hatch the publisher has ever
+   * sealed. Empty set is fine — the call still works for the ancestor's own vault. */
+  const childIpIds = React.useMemo(() => {
+    const set = new Set();
+    for (const h of allMy) if (h.signalIpId) set.add(h.signalIpId.toLowerCase());
+    return [...set];
+  }, [allMy]);
+
+  const claimMut = useMutation({
+    mutationFn: async () => {
+      if (!wiring) throw new Error("Connect wallet on Story Aeneid first");
+      if (!root) throw new Error("No publisher root");
+      return await claimAllRevenue({
+        config: { ...wiring.hatchConfig, storage: /** @type {any} */(null) },
+        storyClient: wiring.storyClient,
+        ancestorIpId: root,
+        claimer: wiring.account.address,
+        childIpIds,
+      });
+    },
+    onSuccess: (r) => {
+      const total = r.claimed.reduce((acc, c) => acc + c.amount, 0n);
+      const lastTx = r.txHashes[r.txHashes.length - 1];
+      setClaimResult({
+        ok: true,
+        msg: total > 0n ? `Claimed ${fmtWip(total)} WIP` : "Claim sent — nothing to collect yet",
+        tx: lastTx,
+      });
+      qc.invalidateQueries({ queryKey: qk.publisher(root) });
+      claimableQ.refetch();
+    },
+    onError: (e) => setClaimResult({ ok: false, msg: e instanceof Error ? e.message : String(e) }),
+  });
+
+  const claimable = claimableQ.data?.wip ?? "0";
+  const claimableBig = claimable && claimable !== "0" ? BigInt(claimable) : 0n;
+  const claimDisabled = !wiring || claimMut.isPending;
+
+  /* Wrap IP → WIP. Subscribers need WIP for license minting fees + bond
+   * deposits; publishers need WIP for staking. This widget kills the demo's
+   * `cast send 0x1514…0000 'deposit()'` step. */
+  const wrapMut = useMutation({
+    mutationFn: async () => {
+      if (!wiring) throw new Error("Connect wallet on Story Aeneid first");
+      let amount;
+      try { amount = parseEther(wrapAmount || "0"); }
+      catch { throw new Error("Invalid amount — use a decimal like 0.1"); }
+      if (amount <= 0n) throw new Error("Amount must be > 0");
+      const tx = await wrapNativeToWip({
+        config: { ...wiring.hatchConfig, storage: /** @type {any} */ (null) },
+        publicClient: wiring.publicClient,
+        walletClient: wiring.walletClient,
+        account: wiring.account,
+        amount,
+      });
+      return { txHash: tx };
+    },
+    onSuccess: (r) => setWrapResult({ ok: true, msg: `Wrapped ${wrapAmount} IP → WIP`, tx: r.txHash }),
+    onError: (e) => setWrapResult({ ok: false, msg: e instanceof Error ? e.message : String(e) }),
+  });
+
+  /* Delegate an editor wallet to act on behalf of the publisher root IP via
+   * Story's AccessController. Permissions auto-revoke on IP ownership transfer.
+   * `scope: "all"` = ALLOW all functions on all modules; `"none"` = DENY (revoke). */
+  const delegateMut = useMutation({
+    mutationFn: async () => {
+      if (!wiring) throw new Error("Connect wallet on Story Aeneid first");
+      if (!root) throw new Error("No publisher root");
+      const trimmed = delegateAddr.trim();
+      if (!isAddress(trimmed)) throw new Error("Invalid address — paste a 0x… EVM address");
+      return await setDelegate({
+        storyClient: wiring.storyClient,
+        ipId: root,
+        signer: trimmed,
+        scope: delegateScope,
+      });
+    },
+    onSuccess: (r) => {
+      const verb = delegateScope === "all" ? "Granted" : "Revoked";
+      setDelegateResult({ ok: true, msg: `${verb} delegate ${delegateAddr.slice(0,6)}…${delegateAddr.slice(-4)}`, tx: r.txHash });
+      if (delegateScope === "none") setDelegateAddr("");
+    },
+    onError: (e) => setDelegateResult({ ok: false, msg: e instanceof Error ? e.message : String(e) }),
+  });
 
   if (!session?.token) {
     return <div className="view"><div className="mast"><span className="mast-eyebrow"><I.Feather size={13} /> Publishing Command Center</span><h1 className="c-d1">Sign in to view your publisher dashboard.</h1></div></div>;
@@ -180,6 +291,82 @@ function Publisher({ onNearestState }) {
         <div className="s"><span className="v">{metricsQ.data?.activeSubscribers ?? 0}</span><span className="l">Active subscribers</span></div>
         <div className="s"><span className="v">{metricsQ.data?.followerCount ?? 0}</span><span className="l">Followers</span></div>
       </div>
+
+      {(disputeStatusQ.data?.active ?? 0) > 0 && (
+        <div className="pending-row" style={{ marginTop: 24, borderLeft: "3px solid var(--hot)" }}>
+          <div>
+            <div className="t hot">
+              {disputeStatusQ.data.active} active dispute{disputeStatusQ.data.active === 1 ? "" : "s"} against your publisher
+            </div>
+            <div className="m">
+              Subscribers can see this. While a dispute is live, you cannot mint licenses or claim royalties.
+              {disputeStatusQ.data.judgedAgainst > 0 && <> · {disputeStatusQ.data.judgedAgainst} judged against you historically.</>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="section-rule" style={{ marginTop: 32 }}>
+        <h2>Earnings</h2>
+        <span className="meta">claimable from LAP</span>
+      </div>
+      <div className="pending-row" style={{ alignItems: "center" }}>
+        <div>
+          <div className="t">
+            {claimableQ.isLoading ? "Checking…" : `${fmtWip(claimable)} WIP`}
+            {claimableBig > 0n && <span className="verdant" style={{ marginLeft: 8, fontSize: 12 }}>available</span>}
+          </div>
+          <div className="m">
+            Routes via RoyaltyPolicyLAP from every hatch under your root.
+            {claimableQ.data?.vault ? <> Vault <span className="mono">{claimableQ.data.vault.slice(0, 8)}…</span></> : null}
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+          <Button
+            variant="primary" size="md"
+            disabled={claimDisabled}
+            onClick={() => { setClaimResult(null); claimMut.mutate(); }}
+            title={!wiring ? "Connect wallet on Story Aeneid" : ""}
+          >
+            {claimMut.isPending ? "Claiming…" : "Claim royalties"}
+          </Button>
+          {claimResult && (
+            <p className={claimResult.ok ? "verdant" : "hot"} style={{ fontSize: 12, margin: 0 }}>
+              {claimResult.msg}
+              {claimResult.tx && <> · <a target="_blank" rel="noreferrer" style={{ color: "var(--hot)" }} href={`https://aeneid.storyscan.io/tx/${claimResult.tx}`}>tx</a></>}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="pending-row" style={{ alignItems: "center", marginTop: 12 }}>
+        <div>
+          <div className="t">Wrap IP → WIP</div>
+          <div className="m">WIP is the canonical token for royalty payments, license fees, and registry stakes.</div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <input
+            className="input" type="number" min="0" step="0.01"
+            value={wrapAmount} onChange={(e) => setWrapAmount(e.target.value)}
+            style={{ width: 90, padding: "6px 8px", fontSize: 12 }} placeholder="0.1"
+          />
+          <span className="mono-sm ink-soft">IP</span>
+          <Button
+            variant="outline" size="md"
+            disabled={!wiring || wrapMut.isPending}
+            onClick={() => { setWrapResult(null); wrapMut.mutate(); }}
+            title={!wiring ? "Connect wallet on Story Aeneid" : ""}
+          >
+            {wrapMut.isPending ? "Wrapping…" : "Wrap"}
+          </Button>
+        </div>
+      </div>
+      {wrapResult && (
+        <p className={wrapResult.ok ? "verdant" : "hot"} style={{ fontSize: 12, margin: "4px 0 0 12px" }}>
+          {wrapResult.msg}
+          {wrapResult.tx && <> · <a target="_blank" rel="noreferrer" style={{ color: "var(--hot)" }} href={`https://aeneid.storyscan.io/tx/${wrapResult.tx}`}>tx</a></>}
+        </p>
+      )}
 
       <div className="two-col">
         <div>
@@ -232,6 +419,49 @@ function Publisher({ onNearestState }) {
             <OrbPip state={h.status === "sealed" ? "sealed" : h.status === "active" ? "incubating" : h.status === "revealed" ? "hatching" : "public"} size={24} />
           </div>
         ))}
+      </div>
+
+      <div className="section-rule" style={{ marginTop: 56 }}>
+        <h2>Delegates</h2>
+        <span className="meta">Story AccessController</span>
+      </div>
+      <div className="pending-row" style={{ alignItems: "stretch", flexDirection: "column", gap: 12, padding: 16 }}>
+        <div className="body-md ink-soft">
+          Grant an editor wallet permission to act on behalf of your publisher root IP — seal hatches, claim royalties, mint licenses — without sharing your key. Permissions auto-revoke if you transfer the IP.
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <input
+            className="input"
+            type="text"
+            value={delegateAddr}
+            onChange={(e) => setDelegateAddr(e.target.value)}
+            placeholder="0xEditorAddress…"
+            style={{ flex: "1 1 240px", minWidth: 240, padding: "6px 8px" }}
+          />
+          <select
+            value={delegateScope}
+            onChange={(e) => setDelegateScope(e.target.value)}
+            className="input"
+            style={{ padding: "6px 8px" }}
+          >
+            <option value="all">Grant — all actions</option>
+            <option value="none">Revoke (DENY)</option>
+          </select>
+          <Button
+            variant="primary" size="md"
+            disabled={!wiring || delegateMut.isPending}
+            onClick={() => { setDelegateResult(null); delegateMut.mutate(); }}
+            title={!wiring ? "Connect wallet on Story Aeneid" : ""}
+          >
+            {delegateMut.isPending ? "Updating…" : delegateScope === "all" ? "Grant" : "Revoke"}
+          </Button>
+        </div>
+        {delegateResult && (
+          <p className={delegateResult.ok ? "verdant" : "hot"} style={{ fontSize: 12, margin: 0 }}>
+            {delegateResult.msg}
+            {delegateResult.tx && <> · <a target="_blank" rel="noreferrer" style={{ color: "var(--hot)" }} href={`https://aeneid.storyscan.io/tx/${delegateResult.tx}`}>tx</a></>}
+          </p>
+        )}
       </div>
     </div>
   );

@@ -35,9 +35,8 @@ html.lenis.lenis-stopped body {
 }
 
 /* GPU-acceleration hints for elements the motion system animates. */
-.lp-hero-orb,
 .hatch-card,
-.hatch-orb-anchor {
+.hatch-artifact-anchor {
   transform: translateZ(0);
   will-change: transform, opacity;
 }
@@ -62,7 +61,7 @@ html.lenis.lenis-stopped body {
   box-shadow: 0 18px 40px -28px rgba(26, 24, 21, 0.32);
 }
 
-/* The anchor box itself is invisible — only the OrbStage renders the orb.
+/* The anchor box itself is invisible — only the OrbStage renders the artifact.
  * The anchor preserves the design's intended box for layout/measurement. */
 [data-orb-anchor] {
   background: transparent !important;
@@ -75,9 +74,9 @@ html.lenis.lenis-stopped body {
   min-height: 0;
 }
 
-/* HatchOrb overlay — the countdown sits over the orb's center; it's free of
- * the orb's own SVG and inherits the design's lp-core-time mono treatment. */
-.hatch-orb-anchor .lp-orb-overlay {
+/* HatchArtifact overlay — the countdown sits over the artifact's center.
+ * Used by non-hero contexts (console, per-view anchors). */
+.hatch-artifact-anchor .lp-orb-overlay {
   position: absolute;
   inset: 0;
   display: grid;
@@ -85,7 +84,7 @@ html.lenis.lenis-stopped body {
   pointer-events: none;
   z-index: 2;
 }
-.hatch-orb-anchor .lp-orb-overlay .lp-core-time {
+.hatch-artifact-anchor .lp-orb-overlay .lp-core-time {
   font-family: "IBM Plex Mono", monospace;
   font-size: clamp(1.1rem, 1.8vw, 1.6rem);
   letter-spacing: 0.06em;
@@ -104,11 +103,7 @@ html.lenis.lenis-stopped body {
   scroll-margin-top: 88px;
 }
 
-/* The Hero claims the opening viewport in full. */
-.lp-hero {
-  padding-top: clamp(64px, 10vh, 140px);
-  padding-bottom: clamp(64px, 10vh, 120px);
-}
+/* The Hero provides a sticky scroll runway; inner frame owns spacing. */
 
 /* Chapter-internal: breathing room around the inner content. Tight enough
  * that short chapters don't feel like void, generous enough that the
@@ -119,6 +114,72 @@ html.lenis.lenis-stopped body {
 .lp-trust,
 .lp-closing {
   padding-block: clamp(64px, 8vh, 128px);
+}
+
+/* Final mobile guardrails. This file loads after the design CSS, so these
+ * constraints win even when shared button/header rules are updated. */
+@media (max-width: 560px) {
+  .header-inner {
+    min-width: 0;
+    padding-inline: 16px !important;
+    gap: 10px !important;
+  }
+
+  .wordmark,
+  .header-right {
+    min-width: 0;
+  }
+
+  .header-right {
+    flex: 0 0 auto;
+    gap: 7px !important;
+  }
+
+  .nav-divider {
+    display: none;
+  }
+
+  .btn-connect {
+    width: 38px !important;
+    min-width: 38px;
+    flex: 0 0 38px;
+    padding-inline: 0 !important;
+    justify-content: center;
+    gap: 0 !important;
+    overflow: hidden;
+    font-size: 0;
+  }
+
+  .btn-connect svg {
+    width: 16px;
+    height: 16px;
+    margin: 0 !important;
+  }
+
+  .btn-connect .wallet-dot {
+    margin: 0;
+  }
+
+  .lp-hero-frame,
+  .lp-hero-line,
+  .lp-hero-sub,
+  .lp-hero-ctas,
+  .lp-hero-readout {
+    max-width: 100%;
+  }
+
+  .lp-hero-ctas {
+    width: min(100%, 280px) !important;
+    flex-direction: column !important;
+    align-items: stretch;
+    flex-wrap: nowrap;
+  }
+
+  .lp-hero-ctas .btn {
+    width: 100%;
+    flex: 0 0 auto !important;
+    white-space: nowrap;
+  }
 }
 
 /* Reduce motion respectfully. */

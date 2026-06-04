@@ -321,14 +321,207 @@
 /* ============================================================
    responsive shell
    ============================================================ */
+
+/* hamburger trigger — shown only on mobile via console_shell */
+.rail-hamburger { display: none; }
+.rail-drawer-backdrop { display: none; }
+
 @media (max-width: 900px) {
   .console { grid-template-columns: 1fr; }
-  .rail { position: static; height: auto; flex-direction: row; align-items: center; overflow-x: auto; padding: 10px 12px; gap: 6px; border-right: 0; border-bottom: 1px solid var(--rule); }
-  .rail-brand { padding: 6px 8px; }
-  .rail-section, .rail-spacer, .rail-follow, .rail-user, .rail-follow-wrap { display: none; }
-  .rail-link { white-space: nowrap; }
-  .rail-link.active::before { display: none; }
-  .view { padding: 32px 20px 80px; }
-  .topbar { padding: 0 20px; }
+  /* Rail becomes a fixed bottom tab bar on mobile */
+  .rail {
+    position: fixed; bottom: 0; left: 0; right: 0; top: auto;
+    height: 64px; padding: 6px 8px env(safe-area-inset-bottom);
+    flex-direction: row; align-items: stretch; justify-content: space-around;
+    gap: 0; border-right: 0; border-top: 1px solid var(--rule);
+    background: color-mix(in srgb, var(--bg-paper) 96%, transparent);
+    backdrop-filter: saturate(1.3) blur(12px); z-index: 40;
+    overflow: visible;
+  }
+  .rail-brand,
+  .rail-section,
+  .rail-empty,
+  .rail-spacer,
+  .rail-follow,
+  .rail-follow-wrap,
+  .rail-user { display: none; }
+  .rail nav { display: contents; }
+  .rail-link {
+    flex: 1; flex-direction: column; gap: 2px; padding: 6px 4px;
+    justify-content: center; text-align: center; font-size: 10px;
+    letter-spacing: 0.04em; text-transform: uppercase; min-width: 0;
+    white-space: nowrap;
+  }
+  .rail-link span {
+    overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+    display: block;
+  }
+  .rail-link svg { width: 20px; height: 20px; }
+  .rail-link .badge { display: none; }
+  .rail-link.active { background: transparent; color: var(--hot); }
+  .rail-link.active svg { color: var(--hot); }
+  .rail-link.active::before {
+    display: block; content: ""; position: absolute;
+    left: 50%; right: auto; top: 0; bottom: auto;
+    width: 28px; height: 2px; transform: translateX(-50%);
+    background: var(--hot); border-radius: 0 0 2px 2px;
+  }
+  /* Only show first 4 primary routes on mobile; secondary go in drawer */
+  .rail-link:nth-of-type(n+5) { display: none; }
+
+  /* Hamburger drawer for full nav */
+  .rail-hamburger {
+    display: grid; place-items: center;
+    width: 36px; height: 36px;
+    border: 1px solid var(--rule); border-radius: var(--r-sm);
+    background: transparent; color: var(--ink);
+  }
+  .rail-drawer-backdrop {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(26,24,21,0.5);
+    display: block;
+  }
+  .rail-drawer {
+    position: fixed; top: 0; left: 0; bottom: 0; width: min(82vw, 320px);
+    background: var(--bg-paper); border-right: 1px solid var(--rule);
+    z-index: 51; display: flex; flex-direction: column;
+    padding: 18px 16px env(safe-area-inset-bottom);
+    gap: 4px; overflow-y: auto;
+    animation: drawerIn 220ms var(--ease);
+  }
+  @keyframes drawerIn { from { transform: translateX(-100%); } to { transform: none; } }
+  .rail-drawer .rail-brand,
+  .rail-drawer .rail-section,
+  .rail-drawer .rail-empty,
+  .rail-drawer .rail-spacer,
+  .rail-drawer .rail-follow,
+  .rail-drawer .rail-follow-wrap,
+  .rail-drawer .rail-user { display: flex; }
+  .rail-drawer .rail-section { display: block; }
+  .rail-drawer .rail-empty { display: block; }
+  .rail-drawer .rail-link {
+    flex: none; flex-direction: row; gap: 11px; padding: 9px 10px;
+    justify-content: flex-start; text-align: left; font-size: 14px;
+    letter-spacing: 0; text-transform: none;
+  }
+  .rail-drawer .rail-link:nth-of-type(n+5) { display: flex; }
+  .rail-drawer .rail-link svg { width: 17px; height: 17px; }
+  .rail-drawer .rail-link span { display: inline; }
+  .rail-drawer .rail-link.active::before {
+    content: ""; position: absolute; left: -16px; top: 8px; bottom: 8px; right: auto;
+    width: 2px; height: auto; transform: none;
+    background: var(--hot); border-radius: 2px;
+  }
+  .rail-drawer .rail-link .badge { display: inline-block; }
+
+  /* Reserve space at bottom of workspace for fixed bottom tab bar */
+  .workspace { padding-bottom: 72px; }
+
+  .view { padding: 32px 20px 32px; }
+
+  /* Topbar — slim down on mobile */
+  .topbar { padding: 0 16px; gap: 8px; height: 56px; }
+  .topbar-left { gap: 8px; min-width: 0; flex: 1; }
+  .topbar-right { gap: 8px; }
   .topbar-clock { display: none; }
+  .topbar-state {
+    padding: 3px 8px 3px 4px; font-size: 10px; letter-spacing: 0.05em;
+    flex: none;
+  }
+  .topbar-balance { display: none; }
+  .topbar-crumb {
+    font-size: 10px; letter-spacing: 0.06em;
+    overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; max-width: 40vw;
+  }
+}
+
+@media (max-width: 480px) {
+  .view { padding: 24px 16px 32px; }
+  .c-d1 { font-size: clamp(30px, 9vw, 40px); }
+  .c-d2 { font-size: clamp(24px, 7vw, 30px); }
+  .topbar-state { display: none; }
+  .topbar { padding: 0 12px; }
+}
+
+/* ============================================================
+   Mobile breakpoints for content blocks
+   ============================================================ */
+@media (max-width: 640px) {
+  /* publisher mast */
+  .pub-mast { padding-bottom: 24px; gap: 20px; }
+  .pub-mast-id { font-size: 12px; word-break: break-all; }
+  .pub-mast h1 { font-size: clamp(28px, 8vw, 40px); }
+  .pub-mast .bio { font-size: 15px; line-height: 24px; }
+
+  /* gate (hatch sealed/incubating) */
+  .gate { padding: 24px 0; gap: 20px; margin-top: 16px; }
+  .gate-deck { font-size: 17px; line-height: 26px; }
+  .gate-ctas { max-width: 100%; }
+  .gate-orb { width: min(60vw, 220px); margin: 0 auto; }
+
+  /* incu hero */
+  .incu-hero { padding: 24px 20px; gap: 24px; margin: 20px 0 12px; }
+  .incu-hero h2 { font-size: clamp(24px, 7vw, 34px); }
+
+  /* statline → 2-col grid */
+  .statline {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 24px 20px; margin: 28px 0;
+  }
+  .statline .s .v { font-size: clamp(22px, 6vw, 30px); }
+  .statline .s .l { font-size: 10px; letter-spacing: 0.06em; }
+
+  /* two-col → still single from 860, but tighten gap */
+  .two-col { gap: 28px; }
+  .view-narrow { max-width: 100%; }
+}
+
+@media (max-width: 560px) {
+  /* incu rows + pending rows stack */
+  .incu-row {
+    grid-template-columns: 1fr; gap: 10px; padding: 16px 0;
+  }
+  .incu-row-count { text-align: left; }
+  .incu-row-count .bigcount-v { font-size: 22px; }
+  .incu-row-title { font-size: 17px; line-height: 24px; }
+  .incu-row-meta { flex-wrap: wrap; gap: 4px 8px; }
+  .pending-row { grid-template-columns: 1fr; gap: 6px; }
+
+  /* hatch cards keep handle from colliding with seal */
+  .hatch-card { padding: 18px; }
+  .card-head { padding-right: 30px; }
+  .card-handle {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* ledger table → row-card stack */
+  .ledger-table,
+  .ledger-table tbody,
+  .ledger-table tr,
+  .ledger-table th,
+  .ledger-table td {
+    display: block; width: 100%;
+  }
+  .ledger-table thead { display: none; }
+  .ledger-table tr { padding: 16px 0; border-bottom: 1px solid var(--rule); }
+  .ledger-table td { padding: 4px 0; border: 0; }
+  .ledger-table td.num { text-align: left; }
+  .ledger-title { font-size: 16px; }
+  .ledger-verdict { margin-top: 6px; }
+
+  /* hatch state switch — keep on bottom-right but smaller */
+  .hatch-state-switch { right: 12px; bottom: 80px; }
+  .hatch-state-switch button { padding: 6px 10px; font-size: 10px; }
+}
+
+/* compose form: stack datetime fields under 560 */
+.compose-row { display: flex; gap: 12px; }
+@media (max-width: 560px) {
+  .compose-row { flex-direction: column; gap: 16px; }
+}
+
+/* iOS focus-zoom guard: inputs must be >=16px on small screens */
+@media (max-width: 640px) {
+  .input { font-size: 16px; }
 }

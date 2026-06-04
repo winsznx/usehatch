@@ -1,9 +1,11 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { useMotionValueEvent, useScroll, useSpring } from "framer-motion";
 import { Curve } from "./console_orb.jsx";
 import { Icons } from "./icons.jsx";
-import { Avatar, Button, ConnectWallet, CountdownTimer, Reveal, StatusPill, WaxSeal, WaxSealCracked, lc, pubDisplay, useInView } from "./primitives.jsx";
+import { Avatar, Button, ConnectWallet, CountdownTimer, Reveal, StatusPill, WaxSeal, WaxSealCracked, lc, pubDisplay, shortAddr, useInView } from "./primitives.jsx";
 import { useHatchesQuery, usePublishersQuery } from "../lib/hooks.js";
+import { HatchArtifact } from "../motion/hatch-artifact.js";
 /* Hatch — landing redesign · sections A
    Atmosphere, Header, HatchObject, Hero, Manifesto, Lifecycle chapters */
 const { useState: useStateA, useEffect: useEffectA, useRef: useRefA } = React;
@@ -55,11 +57,9 @@ function Header({ theme, onToggleTheme }) {
 export { Header };
 
 /* ---------- The Hatch Object — anchor for the persistent OrbStage ---------- */
-/* The orb itself lives at the top of the layout (OrbStage); routes/views only
- * advertise WHERE it should land via `data-orb-anchor`. This component renders
- * just the anchor box + countdown overlay. The orb morphs to fill the anchor's
- * bounding rect with FM springs on route changes. */
-function HatchObject({ revealAt, bare = false, state }) {
+/* Simplified anchor for non-hero contexts (console rail, other views).
+ * The artifact itself lives in OrbStage; this only advertises WHERE and WHAT STATE. */
+function HatchObject({ revealAt, bare = false, state, progress }) {
   const [, force] = useStateA(0);
   useEffectA(() => {
     if (bare) return;
@@ -67,13 +67,12 @@ function HatchObject({ revealAt, bare = false, state }) {
     return () => clearInterval(id);
   }, [bare]);
 
-  // Derive lifecycle state from revealAt if not explicitly provided.
   let inferred = state;
   if (!inferred && !bare) {
     const ms = revealAt - Date.now();
     if (ms <= 0) inferred = "public";
-    else if (ms < 60 * 60 * 1000) inferred = "hatching";   // <1h
-    else if (ms < 24 * 60 * 60 * 1000) inferred = "incubating"; // <24h
+    else if (ms < 60 * 60 * 1000) inferred = "hatching";
+    else if (ms < 24 * 60 * 60 * 1000) inferred = "incubating";
     else inferred = "sealed";
   }
   inferred = inferred || "incubating";
@@ -90,12 +89,13 @@ function HatchObject({ revealAt, bare = false, state }) {
 
   return (
     <div
-      className="lp-object hatch-orb-anchor"
+      className="lp-object hatch-artifact-anchor"
       data-orb-anchor
       data-orb-state={inferred}
+      data-orb-progress={progress}
     >
       {!bare && (
-        <div className="lp-orb-overlay">
+        <div className="lp-orb-overlay" style={{ opacity: progress !== undefined ? Math.max(0, 1 - progress * 3) : 1 }}>
           {time}
         </div>
       )}
@@ -104,54 +104,116 @@ function HatchObject({ revealAt, bare = false, state }) {
 }
 export { HatchObject };
 
+const STATE_LABELS = [
+  { key: "sealed",     label: "SEALED",     threshold: [0.0, 0.22] },
+  { key: "incubating", label: "INCUBATING",  threshold: [0.22, 0.48] },
+  { key: "hatching",   label: "HATCHING",    threshold: [0.48, 0.78] },
+  { key: "public",     label: "PUBLIC",      threshold: [0.78, 1.0] },
+];
+
 /* ---------- Hero ---------- */
 function Hero() {
   const I = Icons;
   const navigate = useNavigate();
-  const featuredQ = useHatchesQuery({ status: "active", limit: 1 });
   const allHatchesQ = useHatchesQuery({ limit: 200 });
   const pubsQ = usePublishersQuery();
-  const featured = featuredQ.data?.[0];
-  const featuredRevealMs = featured?.revealAt ? new Date(featured.revealAt).getTime() : null;
   const totalHatches = allHatchesQ.data?.length ?? 0;
   const totalPubs = pubsQ.data?.length ?? 0;
   const resolvedCount = (allHatchesQ.data ?? []).filter((h) => h.status === "resolved").length;
+
+  const [progress, setProgress] = useStateA(0);
+  const sectionRef = useRefA(null);
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start start", "end end"],
+  });
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 92,
+    damping: 28,
+    mass: 0.75,
+  });
+
+  useMotionValueEvent(smoothProgress, "change", (latest) => {
+    setProgress(Math.min(1, Math.max(0, latest)));
+  });
+
+  const activeLabel = STATE_LABELS.find(
+    (s) => progress >= s.threshold[0] && progress < s.threshold[1]
+  ) || STATE_LABELS[STATE_LABELS.length - 1];
+
   return (
-    <section className="lp-hero" id="top">
-      <div className="mono-sm lp-hero-eyebrow">
-        <span className="lp-livedot"></span>
-        STORY PROTOCOL · LIVE ON AENEID
-      </div>
-      <h1 className="lp-d1 lp-hero-line lp-hero-line--over">Sealed alpha.</h1>
-      <div className="lp-objectwrap">
-        {featuredRevealMs ? <HatchObject revealAt={featuredRevealMs} /> : <HatchObject revealAt={Date.now() + 86400_000} bare={true} />}
-      </div>
-      <h1 className="lp-d1 lp-hero-line lp-hero-line--under">Public <span className="accent">on timer.</span></h1>
+    <section className="lp-hero lp-hero--narrative" id="top" ref={sectionRef}>
+      <div className="lp-hero-frame">
+        <div className="mono-sm lp-hero-eyebrow">
+          <span className="lp-livedot"></span>
+          STORY PROTOCOL · LIVE ON AENEID
+        </div>
 
-      <p className="body-lg lp-hero-sub">
-        Publishers seal predictions, research, and scoops. The vault cannot be opened early —
-        not by us, not by them. When the timer hits zero, the chain unseals it for everyone,
-        and the record becomes permanent.
-      </p>
-      <div className="lp-hero-ctas">
-        <Button variant="primary" size="lg" onClick={() => navigate("/console")}>
-          See what's sealed <I.ArrowRight size={16} />
-        </Button>
-        <Button variant="outline" size="lg" onClick={() => navigate("/console#/publisher")}>
-          Become a publisher
-        </Button>
-      </div>
-      <div className="mono-sm lp-hero-readout">
-        <span>{totalPubs} PUBLISHER{totalPubs === 1 ? "" : "S"}</span>
-        <span className="sep">·</span>
-        <span>{totalHatches} HATCH{totalHatches === 1 ? "" : "ES"}</span>
-        <span className="sep">·</span>
-        <span>{resolvedCount} RESOLVED</span>
-      </div>
+        <h1 className="lp-d1 lp-hero-line lp-hero-line--over">
+          Sealed alpha.
+        </h1>
 
-      <div className="mono-sm lp-scrollcue" aria-hidden="true">
-        <span>THE LIFECYCLE</span>
-        <I.ArrowDown size={16} />
+        <div className="lp-objectwrap">
+          <div className="lp-object hatch-artifact-inline" aria-hidden="true">
+            <HatchArtifact
+              progress={progress}
+              state={activeLabel.key}
+              size="100%"
+              cursorTilt={false}
+            />
+          </div>
+
+          <div className="lp-artifact-state-labels" aria-hidden="true">
+            {STATE_LABELS.map((s) => {
+              const isActive = s.key === activeLabel.key;
+              return (
+                <span
+                  key={s.key}
+                  className={"lp-state-label mono-sm" + (isActive ? " is-active" : "")}
+                  data-state={s.key}
+                >
+                  {s.label}
+                </span>
+              );
+            })}
+          </div>
+
+          <div className="lp-artifact-progress" aria-hidden="true">
+            <div className="lp-artifact-progress-fill" style={{ transform: `scaleX(${progress})` }}></div>
+          </div>
+        </div>
+
+        <h1 className="lp-d1 lp-hero-line lp-hero-line--under">
+          Public <span className="accent">on timer.</span>
+        </h1>
+
+        <p className="body-lg lp-hero-sub">
+          Publishers seal predictions, research, and scoops. The vault cannot be opened early —
+          not by us, not by them. When the timer hits zero, the chain unseals it for everyone,
+          and the record becomes permanent.
+        </p>
+
+        <div className="lp-hero-ctas">
+          <Button variant="primary" size="lg" onClick={() => navigate("/console")}>
+            See what's sealed <I.ArrowRight size={16} />
+          </Button>
+          <Button variant="outline" size="lg" onClick={() => navigate("/console#/publisher")}>
+            Become a publisher
+          </Button>
+        </div>
+
+        <div className="mono-sm lp-hero-readout">
+          <span>{totalPubs} PUBLISHER{totalPubs === 1 ? "" : "S"}</span>
+          <span className="sep">·</span>
+          <span>{totalHatches} HATCH{totalHatches === 1 ? "" : "ES"}</span>
+          <span className="sep">·</span>
+          <span>{resolvedCount} RESOLVED</span>
+        </div>
+
+        <div className="mono-sm lp-scrollcue" aria-hidden="true">
+          <span>THE REVEAL</span>
+          <I.ArrowDown size={16} />
+        </div>
       </div>
     </section>
   );
@@ -373,7 +435,7 @@ function ChapterPublic() {
               <Avatar pub={pubDisp} size={34} />
               <div>
                 <div className="heading-sm name">{pubDisp.handle}</div>
-                <div className="mono-sm ink-soft" style={{ textTransform: "none" }}>{pub?.publisherRootIp ?? "no publishers yet"}</div>
+                <div className="mono-sm ink-soft" style={{ textTransform: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }} title={pub?.publisherRootIp ?? ""}>{pub?.publisherRootIp ? shortAddr(pub.publisherRootIp) : "no publishers yet"}</div>
               </div>
             </div>
             <div className="lp-ledger-acc">

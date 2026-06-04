@@ -14,7 +14,10 @@ export { hatchIdFor, uuidFromHatchId } from "./hatchid.js";
 //   import { LocalDiskProvider, SupabaseProvider } from "@usehatch/sdk/dist/storage.js";
 export type { HatchStorage } from "./storage.js";
 export { buildManifest, parseManifest, type MediaInput } from "./manifest.js";
-export { createPublisher, stake, unstake, getPublisher, wrapNativeToWip } from "./publisher.js";
+export {
+  createPublisher, stake, unstake, getPublisher,
+  wrapNativeToWip, unwrapWipToNative, approveWip, getWipBalance, getWipAllowance,
+} from "./publisher.js";
 export { createHatch, getHatch, encodeConditionData, encodeOwnerWriteData } from "./hatch.js";
 export { buyHatch, subscribe } from "./commerce.js";
 export { readHatch, encodeAccessAux } from "./read.js";
@@ -23,3 +26,33 @@ export {
   signAttestation, submitAttestation, challenge, finalize, resolveChallenge, getOutcome,
   oracleDomain, ATTESTATION_TYPES, type Outcome,
 } from "./oracle.js";
+export {
+  claimAllRevenue, payRoyaltyOnBehalf, getClaimableRevenue,
+  type TxExecutor,
+} from "./royalty.js";
+export {
+  uploadIpaMetadata,
+  type IpaCreator, type IpaMetadataInput, type UploadedMetadata,
+} from "./ipa-metadata.js";
+export {
+  pickPilTerms, NON_COMMERCIAL_SOCIAL_REMIXING_TERMS_ID,
+  type PilFlavorName, type PilFlavorInput,
+} from "./pil.js";
+export { withCdrRetry, CDR_DEFAULT_TIMEOUT_MS, type CdrRetryOpts } from "./cdr-runtime.js";
+export {
+  raiseDispute, cancelDispute,
+  DISPUTE_TAGS, DISPUTE_DEFAULT_LIVENESS,
+  type DisputeTag,
+} from "./dispute.js";
+export {
+  createGroup, addToGroup, removeFromGroup, GROUP_MEMBER_CAP,
+} from "./grouping.js";
+export {
+  buyHatchCrossChain, tipCrossChain,
+  CROSS_CHAIN_SOURCES, DEBRIDGE_STORY_MAINNET_ID,
+  type CrossChainSource,
+} from "./crossChain.js";
+export {
+  setDelegate, setDelegateScoped, AccessPermission,
+  type DelegateScope,
+} from "./access.js";

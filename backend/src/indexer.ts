@@ -1,15 +1,16 @@
-import { createPublicClient, http, parseAbi, parseEventLogs, decodeAbiParameters, type Log, type Address } from "viem";
+import { createPublicClient, parseAbi, parseEventLogs, decodeAbiParameters, type Log, type Address } from "viem";
 // import { hatchIdFor } from "../../sdk/dist/index.js"; // unused here; the inverse parse is enough
 import { and, eq, sql } from "drizzle-orm";
 import { EventEmitter } from "node:events";
 import { db, schema } from "./db/client.js";
 
 import { loadEnv } from "./env.js";
+import { aeneidTransport } from "./transport.js";
 loadEnv();
 
 const RPC_URL = process.env.RPC_URL!;
 const aeneid = { id: 1315, name: "Story Aeneid", nativeCurrency: { name: "IP", symbol: "IP", decimals: 18 }, rpcUrls: { default: { http: [RPC_URL] } } } as const;
-export const publicClient = createPublicClient({ chain: aeneid, transport: http(RPC_URL) });
+export const publicClient = createPublicClient({ chain: aeneid, transport: aeneidTransport() });
 
 /* ────────────────────────── deployed addresses (lowercase for cursor keys) */
 export const CONTRACTS = {
@@ -20,6 +21,10 @@ export const CONTRACTS = {
   // PublisherRegistry is set at runtime (the integration test deploys a fresh one)
   registry:         (process.env.REGISTRY_ADDR ?? "").toLowerCase(),
   licensingModule:  "0x04fbd8a2e56dd85cfd5500a4a4dfa955b9f1de6f",
+  // Story DisputeModule (identical address on Aeneid + Mainnet).
+  disputeModule:    "0x9b7a9c70aff961c799110954fc06f3093aeb94c5",
+  // Story GroupingModule (identical address on Aeneid + Mainnet).
+  groupingModule:   "0x69d3a7aa9edb72bc226e745a7ccdd50d947b69ac",
 } as const;
 
 /* ────────────────────────── event ABIs (one source of truth) */
@@ -47,6 +52,17 @@ const registryAbi = parseAbi([
 ]);
 const licensingAbi = parseAbi([
   "event LicenseTokensMinted(address indexed caller, address indexed licensorIpId, address indexed licenseTemplate, uint256 licenseTermsId, uint256 amount, address receiver, uint256 startLicenseTokenId)",
+]);
+const disputeAbi = parseAbi([
+  "event DisputeRaised(uint256 disputeId, address targetIpId, address disputeInitiator, uint256 disputeTimestamp, address arbitrationPolicy, bytes32 disputeEvidenceHash, bytes32 targetTag, bytes data)",
+  "event DisputeJudgementSet(uint256 disputeId, bool decision, bytes data)",
+  "event DisputeCancelled(uint256 disputeId, bytes data)",
+  "event DisputeResolved(uint256 disputeId, bytes data)",
+]);
+const groupingAbi = parseAbi([
+  "event IPGroupRegistered(address indexed groupId, address indexed groupPool)",
+  "event AddedIpToGroup(address indexed groupId, address[] ipIds)",
+  "event RemovedIpFromGroup(address indexed groupId, address[] ipIds)",
 ]);
 
 /* ────────────────────────── runtime event bus (API/WS subscribe to this) */
@@ -201,6 +217,146 @@ async function handleSlashed(log: any) {
     .where(eq(schema.publishers.wallet, lc(log.args.publisher)));
 }
 
+/* Story DisputeModule events. Tags are bytes32-encoded strings ("IMPROPER_USAGE"
+ * etc.). We decode by stripping trailing zeros and ASCII-converting.
+ *
+ * On DisputeRaised, we cross-reference the target IP against our hatches table:
+ * - target matches a publisher root → set publisherRootIp on the dispute row.
+ * - target matches a signal IP → set both hatchUuid and the parent publisherRootIp.
+ * - neither matches → dispute against an IP unrelated to Hatch; row stored for
+ *   completeness but won't surface on our pages. */
+function decodeBytes32Tag(b: `0x${string}`): string {
+  // bytes32 ASCII tag: strip trailing zero bytes, then convert.
+  const hex = b.slice(2);
+  let out = "";
+  for (let i = 0; i < hex.length; i += 2) {
+    const byte = parseInt(hex.slice(i, i + 2), 16);
+    if (byte === 0) break;
+    out += String.fromCharCode(byte);
+  }
+  return out;
+}
+
+async function handleDisputeRaised(log: any) {
+  const targetIp = lc(log.args.targetIpId);
+  const challenger = lc(log.args.disputeInitiator);
+
+  // Cross-reference target → our schema.
+  let hatchUuid: number | null = null;
+  let publisherRootIp: string | null = null;
+  const [byPublisher] = await db.select({ root: schema.publishers.publisherRootIp })
+    .from(schema.publishers).where(eq(schema.publishers.publisherRootIp, targetIp));
+  if (byPublisher) {
+    publisherRootIp = byPublisher.root;
+  } else {
+    const [bySignal] = await db.select({ uuid: schema.hatches.uuid, root: schema.hatches.publisherRootIp })
+      .from(schema.hatches).where(eq(schema.hatches.signalIpId, targetIp));
+    if (bySignal) {
+      hatchUuid = bySignal.uuid;
+      publisherRootIp = bySignal.root;
+    }
+  }
+
+  const block = await publicClient.getBlock({ blockNumber: log.blockNumber! });
+  await db.insert(schema.disputes).values({
+    storyDisputeId: log.args.disputeId as bigint,
+    targetIpId: targetIp,
+    hatchUuid: hatchUuid ?? undefined,
+    publisherRootIp,
+    challenger,
+    tag: decodeBytes32Tag(log.args.targetTag as `0x${string}`),
+    evidenceHash: log.args.disputeEvidenceHash as string,
+    arbitrationPolicy: lc(log.args.arbitrationPolicy),
+    status: "raised",
+    raisedAt: tsFromUnix(block.timestamp),
+    txHashes: { raised: log.transactionHash },
+  }).onConflictDoNothing();
+
+  if (publisherRootIp) {
+    indexerBus.emit("dispute:raised", {
+      disputeId: log.args.disputeId.toString(),
+      publisherRoot: publisherRootIp,
+      hatchUuid,
+    });
+  }
+}
+
+async function handleDisputeJudgement(log: any) {
+  const decision = Boolean(log.args.decision);
+  await db.update(schema.disputes)
+    .set({
+      status: decision ? "judged-true" : "judged-false",
+      decision,
+      judgedAt: new Date(),
+      txHashes: sql`COALESCE(${schema.disputes.txHashes}, '{}'::jsonb) || ${JSON.stringify({ judged: log.transactionHash })}::jsonb`,
+    })
+    .where(eq(schema.disputes.storyDisputeId, log.args.disputeId as bigint));
+}
+
+async function handleDisputeCancelled(log: any) {
+  await db.update(schema.disputes)
+    .set({
+      status: "cancelled",
+      resolvedAt: new Date(),
+      txHashes: sql`COALESCE(${schema.disputes.txHashes}, '{}'::jsonb) || ${JSON.stringify({ cancelled: log.transactionHash })}::jsonb`,
+    })
+    .where(eq(schema.disputes.storyDisputeId, log.args.disputeId as bigint));
+}
+
+async function handleDisputeResolved(log: any) {
+  await db.update(schema.disputes)
+    .set({
+      status: "resolved",
+      resolvedAt: new Date(),
+      txHashes: sql`COALESCE(${schema.disputes.txHashes}, '{}'::jsonb) || ${JSON.stringify({ resolved: log.transactionHash })}::jsonb`,
+    })
+    .where(eq(schema.disputes.storyDisputeId, log.args.disputeId as bigint));
+}
+
+/* Story GroupingModule events. Group registration and member adds/removes.
+ * We store group_members rows so the API can serve "what's in this group" +
+ * "what groups does this hatch belong to" queries quickly. */
+async function handleIPGroupRegistered(log: any) {
+  const groupId = lc(log.args.groupId);
+  await db.insert(schema.groups).values({
+    groupIpId: groupId,
+    groupPool: lc(log.args.groupPool),
+    status: "active",
+    txHashes: { registerGroup: log.transactionHash },
+  }).onConflictDoNothing();
+  indexerBus.emit("group:registered", { groupId });
+}
+
+async function handleAddedIpToGroup(log: any) {
+  const groupId = lc(log.args.groupId);
+  const ipIds = (log.args.ipIds as `0x${string}`[]).map(lc);
+  if (ipIds.length === 0) return;
+
+  // Resolve each member against our hatches table to populate hatch_uuid.
+  const matches = await db.select({ id: schema.hatches.signalIpId, uuid: schema.hatches.uuid })
+    .from(schema.hatches);
+  const byId = new Map(matches.map((m) => [m.id, m.uuid]));
+
+  for (const memberIp of ipIds) {
+    await db.insert(schema.groupMembers).values({
+      groupIpId: groupId,
+      memberIpId: memberIp,
+      hatchUuid: byId.get(memberIp) ?? undefined,
+    }).onConflictDoNothing();
+  }
+  indexerBus.emit("group:members-added", { groupId, count: ipIds.length });
+}
+
+async function handleRemovedIpFromGroup(log: any) {
+  const groupId = lc(log.args.groupId);
+  const ipIds = (log.args.ipIds as `0x${string}`[]).map(lc);
+  for (const memberIp of ipIds) {
+    await db.update(schema.groupMembers)
+      .set({ removedAt: new Date() })
+      .where(and(eq(schema.groupMembers.groupIpId, groupId), eq(schema.groupMembers.memberIpId, memberIp)));
+  }
+}
+
 async function handleLicenseMinted(log: any) {
   // Per-hatch license: licensorIpId matches a known hatch.signal_ip_id.
   // Subscription license: licensorIpId matches a known publisher.publisher_root_ip.
@@ -272,6 +428,19 @@ function dispatchLicensing(log: any) {
   if (log.eventName === "LicenseTokensMinted") return handleLicenseMinted(log);
   return Promise.resolve();
 }
+function dispatchDispute(log: any) {
+  if (log.eventName === "DisputeRaised") return handleDisputeRaised(log);
+  if (log.eventName === "DisputeJudgementSet") return handleDisputeJudgement(log);
+  if (log.eventName === "DisputeCancelled") return handleDisputeCancelled(log);
+  if (log.eventName === "DisputeResolved") return handleDisputeResolved(log);
+  return Promise.resolve();
+}
+function dispatchGrouping(log: any) {
+  if (log.eventName === "IPGroupRegistered") return handleIPGroupRegistered(log);
+  if (log.eventName === "AddedIpToGroup") return handleAddedIpToGroup(log);
+  if (log.eventName === "RemovedIpFromGroup") return handleRemovedIpFromGroup(log);
+  return Promise.resolve();
+}
 
 /* ────────────────────────── status tick (sealed→active→revealed crossings) */
 async function statusTick(now: Date) {
@@ -294,6 +463,8 @@ export async function runIndexer({ startBlock, tickIntervalMs = 5000 }: { startB
     { contract: CONTRACTS.pass, abi: passAbi, dispatch: dispatchPass },
     { contract: CONTRACTS.oracle, abi: oracleAbi, dispatch: dispatchOracle },
     { contract: CONTRACTS.licensingModule, abi: licensingAbi, dispatch: dispatchLicensing },
+    { contract: CONTRACTS.disputeModule, abi: disputeAbi, dispatch: dispatchDispute },
+    { contract: CONTRACTS.groupingModule, abi: groupingAbi, dispatch: dispatchGrouping },
   ];
   if (CONTRACTS.registry) pairs.push({ contract: CONTRACTS.registry, abi: registryAbi, dispatch: dispatchRegistry });
 

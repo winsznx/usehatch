@@ -17,7 +17,10 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 export class BackendStorage implements BrowserHatchStorage {
-  constructor(private readonly baseUrl: string = config.backendUrl) {}
+  readonly baseUrl: string;
+  constructor(baseUrl: string = config.backendUrl) {
+    this.baseUrl = baseUrl;
+  }
 
   async upload(data: Uint8Array): Promise<string> {
     const token = getSiweToken();

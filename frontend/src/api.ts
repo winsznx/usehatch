@@ -83,6 +83,61 @@ export interface PublisherMetrics {
   activeSubscribers: number;
   followerCount: number;
 }
+export interface PublisherClaimable {
+  wip: string;                  // bigint as string, "0" when no vault yet
+  vault: Address | null;
+  claimer: Address;
+  token?: Address;
+  lastChecked: string;          // ISO timestamp
+}
+
+export type DisputeStatus = "raised" | "judged-true" | "judged-false" | "cancelled" | "resolved";
+export interface Dispute {
+  storyDisputeId: string;
+  targetIpId: Address;
+  hatchUuid: number | null;
+  publisherRootIp: Address | null;
+  challenger: Address;
+  tag: string;
+  evidenceHash: string | null;
+  evidenceCid: string | null;
+  arbitrationPolicy: Address | null;
+  bondWei: string | null;
+  status: DisputeStatus;
+  decision: boolean | null;
+  raisedAt: string;
+  judgedAt: string | null;
+  resolvedAt: string | null;
+  txHashes: { raised?: string; judged?: string; cancelled?: string; resolved?: string } | null;
+}
+export interface DisputeStatusSummary {
+  publisherRootIp: Address;
+  active: number;
+  judgedAgainst: number;
+  total: number;
+  counts: { raised: number; judgedTrue: number; judgedFalse: number; cancelled: number; resolved: number };
+}
+
+export type GroupStatus = "active" | "locked" | "dissolved";
+export interface GroupSummary {
+  groupIpId: Address;
+  publisherRootIp: Address | null;
+  ownerWallet: Address | null;
+  groupPool: Address;
+  licenseTermsId: string | null;
+  title: string | null;
+  description: string | null;
+  status: GroupStatus;
+  createdAt: string;
+  txHashes: { registerTerms?: string; registerGroup?: string } | null;
+}
+export interface GroupMember {
+  groupIpId: Address;
+  memberIpId: Address;
+  hatchUuid: number | null;
+  addedAt: string;
+  removedAt: string | null;
+}
 
 interface ReqOpts {
   token?: string | null;
@@ -124,6 +179,17 @@ export interface RawApi {
   publisher(rootIp: Address): Promise<{ publisher: PublisherSummary; trackRecord: TrackRecord | null }>;
   publisherResolutions(rootIp: Address): Promise<{ resolutions: ResolutionRow[] }>;
   publisherMetrics(rootIp: Address): Promise<PublisherMetrics>;
+  publisherClaimable(rootIp: Address, claimer?: Address): Promise<PublisherClaimable>;
+  disputes(opts?: { targetIpId?: Address; publisher?: Address; hatchUuid?: number; status?: DisputeStatus; limit?: number }): Promise<{ disputes: Dispute[] }>;
+  publisherDisputeStatus(rootIp: Address): Promise<DisputeStatusSummary>;
+  uploadEvidence(text: string, token: string): Promise<{ cid: string }>;
+  groups(opts?: { publisher?: Address; owner?: Address; limit?: number }): Promise<{ groups: GroupSummary[] }>;
+  group(groupId: Address): Promise<{ group: GroupSummary; members: GroupMember[] }>;
+  setGroupMetadata(
+    groupId: Address,
+    body: { title?: string; description?: string; publisherRootIp?: Address; licenseTermsId?: string },
+    token: string,
+  ): Promise<{ ok: true; groupId: Address }>;
   hatches(opts?: { status?: HatchStatus; publisher?: Address; limit?: number }): Promise<{ hatches: HatchSummary[] }>;
   hatch(uuid: number): Promise<{ hatch: HatchSummary }>;
   hatchReveal(uuid: number): Promise<{ revealedContent: { hatchUuid: number; text: string | null; media: { name: string; mime: string; cid: string }[] | null; revealedAt: string; revealedBy: string | null } }>;
@@ -179,6 +245,41 @@ export const api: RawApi = {
   publisher(rootIp) { return req(`/publishers/${rootIp.toLowerCase()}`); },
   publisherResolutions(rootIp) { return req(`/publishers/${rootIp.toLowerCase()}/resolutions`); },
   publisherMetrics(rootIp) { return req(`/publishers/${rootIp.toLowerCase()}/metrics`); },
+  publisherClaimable(rootIp, claimer) {
+    const qs = claimer ? `?claimer=${claimer.toLowerCase()}` : "";
+    return req(`/publishers/${rootIp.toLowerCase()}/claimable${qs}`);
+  },
+  disputes(opts) {
+    const qs = new URLSearchParams();
+    if (opts?.targetIpId) qs.set("targetIpId", opts.targetIpId.toLowerCase());
+    if (opts?.publisher) qs.set("publisher", opts.publisher.toLowerCase());
+    if (opts?.hatchUuid !== undefined) qs.set("hatchUuid", String(opts.hatchUuid));
+    if (opts?.status) qs.set("status", opts.status);
+    if (opts?.limit) qs.set("limit", String(opts.limit));
+    return req(`/disputes${qs.toString() ? "?" + qs.toString() : ""}`);
+  },
+  publisherDisputeStatus(rootIp) {
+    return req(`/publishers/${rootIp.toLowerCase()}/dispute-status`);
+  },
+  async uploadEvidence(text, token) {
+    const bytes = new TextEncoder().encode(text);
+    const dataBase64 = btoa(String.fromCharCode(...bytes));
+    return await req("/storage", { method: "POST", body: JSON.stringify({ dataBase64 }), token });
+  },
+
+  groups(opts) {
+    const qs = new URLSearchParams();
+    if (opts?.publisher) qs.set("publisher", opts.publisher.toLowerCase());
+    if (opts?.owner) qs.set("owner", opts.owner.toLowerCase());
+    if (opts?.limit) qs.set("limit", String(opts.limit));
+    return req(`/groups${qs.toString() ? "?" + qs.toString() : ""}`);
+  },
+  group(groupId) { return req(`/groups/${groupId.toLowerCase()}`); },
+  setGroupMetadata(groupId, body, token) {
+    return req(`/groups/${groupId.toLowerCase()}/metadata`, {
+      method: "PATCH", body: JSON.stringify(body), token,
+    });
+  },
   hatches(opts) {
     const qs = new URLSearchParams();
     if (opts?.status) qs.set("status", opts.status);

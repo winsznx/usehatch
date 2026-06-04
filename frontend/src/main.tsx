@@ -1,9 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { WagmiProvider } from "wagmi";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 
 import "./design/styles.css";
@@ -15,21 +12,22 @@ import { LenisProvider } from "./motion/lenis-provider.js";
 import { Atmosphere } from "./motion/atmosphere.js";
 import { RouteTransition } from "./motion/route-transition.js";
 import { OrbStage } from "./motion/orb-stage.js";
-import { HatchOrb } from "./motion/hatch-orb.js";
+import { HatchArtifact } from "./motion/hatch-artifact.js";
 import { Chapter, Stage } from "./motion/chapter.js";
 
-import { wagmiConfig, hatchLightTheme } from "./lib/wagmi.js";
-import { queryClient } from "./lib/queries.js";
+import { AppProviders } from "./lib/privy.js";
 import { SiweProvider } from "./lib/siwe.js";
 import { WebSocketProvider } from "./lib/ws.js";
 
 import { App as Landing } from "./design/app.jsx";
 import { ConsoleApp } from "./design/console_mount.jsx";
+import { DocsApp } from "./design/docs_app.jsx";
 
 // Expose motion primitives to the (untyped) design JSX layer.
-(globalThis as { HatchOrb?: unknown; Chapter?: unknown; Stage?: unknown }).HatchOrb = HatchOrb;
-(globalThis as { HatchOrb?: unknown; Chapter?: unknown; Stage?: unknown }).Chapter = Chapter;
-(globalThis as { HatchOrb?: unknown; Chapter?: unknown; Stage?: unknown }).Stage = Stage;
+(globalThis as { HatchArtifact?: unknown; HatchOrb?: unknown; Chapter?: unknown; Stage?: unknown }).HatchArtifact = HatchArtifact;
+(globalThis as { HatchArtifact?: unknown; HatchOrb?: unknown; Chapter?: unknown; Stage?: unknown }).HatchOrb = HatchArtifact; // backward compat alias
+(globalThis as { HatchArtifact?: unknown; HatchOrb?: unknown; Chapter?: unknown; Stage?: unknown }).Chapter = Chapter;
+(globalThis as { HatchArtifact?: unknown; HatchOrb?: unknown; Chapter?: unknown; Stage?: unknown }).Stage = Stage;
 
 class DevErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -64,6 +62,8 @@ function AppRouter() {
             <Route path="/" element={<Landing />} />
             <Route path="/console" element={<ConsoleApp />} />
             <Route path="/console/*" element={<ConsoleApp />} />
+            <Route path="/docs" element={<DocsApp />} />
+            <Route path="/docs/*" element={<DocsApp />} />
             <Route path="*" element={<Landing />} />
           </Routes>
         </DevErrorBoundary>
@@ -74,18 +74,14 @@ function AppRouter() {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <WagmiProvider config={wagmiConfig}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider theme={hatchLightTheme} modalSize="compact">
-          <SiweProvider>
-            <WebSocketProvider>
-              <LenisProvider>
-                <AppRouter />
-              </LenisProvider>
-            </WebSocketProvider>
-          </SiweProvider>
-        </RainbowKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <AppProviders>
+      <SiweProvider>
+        <WebSocketProvider>
+          <LenisProvider>
+            <AppRouter />
+          </LenisProvider>
+        </WebSocketProvider>
+      </SiweProvider>
+    </AppProviders>
   </React.StrictMode>,
 );

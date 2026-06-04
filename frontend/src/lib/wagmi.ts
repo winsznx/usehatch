@@ -5,7 +5,7 @@
  * fields at the chain level so every write call defaults to sane caps without
  * each caller having to remember. Existing SDK paths can still override
  * per-transaction. */
-import { http } from "viem";
+import { http, fallback, type Transport } from "viem";
 import type { Chain } from "viem";
 import { createConfig } from "wagmi";
 import { injected, metaMask, walletConnect } from "wagmi/connectors";
@@ -13,6 +13,11 @@ import { darkTheme, lightTheme } from "@rainbow-me/rainbowkit";
 import type { Theme } from "@rainbow-me/rainbowkit";
 
 import { config as appConfig } from "./config.js";
+
+function buildTransport(primary: string, fallbacks: string[]): Transport {
+  if (!fallbacks.length) return http(primary);
+  return fallback([http(primary), ...fallbacks.map((u) => http(u))], { rank: true, retryCount: 2 });
+}
 
 export const AENEID_MAX_FEE_PER_GAS = 1_000_000_000n;
 export const AENEID_MAX_PRIORITY_FEE_PER_GAS = 100_000_000n;
@@ -46,7 +51,7 @@ export const wagmiConfig = createConfig({
     metaMask(),
     ...(walletConnectProjectId ? [walletConnect({ projectId: walletConnectProjectId, showQrModal: true })] : []),
   ],
-  transports: { [storyAeneid.id]: http(appConfig.rpcUrl) },
+  transports: { [storyAeneid.id]: buildTransport(appConfig.rpcUrl, appConfig.rpcUrlFallbacks) },
   ssr: false,
 });
 

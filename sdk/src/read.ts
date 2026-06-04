@@ -7,6 +7,7 @@ import type { Entitlement, ReadResult, ReadVia } from "./types.js";
 import { parseManifest } from "./manifest.js";
 import { EphemeralPool } from "./ephemeral-pool.js";
 import { HatchError, translate } from "./errors.js";
+import { withCdrRetry } from "./cdr-runtime.js";
 
 /** Pass lend/unlend ABI — only the bits this SDK invokes. */
 const passLendAbi = parseAbi([
@@ -56,7 +57,7 @@ export async function readHatch(args: ReadHatchArgs): Promise<ReadResult> {
         network: "testnet", publicClient: args.publicClient, walletClient: args.walletClient,
         apiUrl: args.config.chain.storyApiUrl,
       });
-      const { dataKey, txHash } = await cdr.consumer.accessCDR({ uuid: args.uuid, accessAuxData });
+      const { dataKey, txHash } = await withCdrRetry(() => cdr.consumer.accessCDR({ uuid: args.uuid, accessAuxData }));
       const parsed = await parseManifest({ storage: args.config.storage, manifestBytes: dataKey });
       return { ...parsed, txHash, reader: args.account.address, latencyMs: performance.now() - t0 };
     }
@@ -74,7 +75,7 @@ export async function readHatch(args: ReadHatchArgs): Promise<ReadResult> {
           network: "testnet", publicClient: args.publicClient, walletClient: wallet,
           apiUrl: args.config.chain.storyApiUrl,
         });
-        const { dataKey, txHash } = await cdr.consumer.accessCDR({ uuid: args.uuid, accessAuxData });
+        const { dataKey, txHash } = await withCdrRetry(() => cdr.consumer.accessCDR({ uuid: args.uuid, accessAuxData }));
         const parsed = await parseManifest({ storage: args.config.storage, manifestBytes: dataKey });
         return { ...parsed, txHash, reader: address, latencyMs: performance.now() - t0 };
       });
@@ -108,7 +109,7 @@ export async function readHatch(args: ReadHatchArgs): Promise<ReadResult> {
             network: "testnet", publicClient: args.publicClient, walletClient: ephWallet,
             apiUrl: args.config.chain.storyApiUrl,
           });
-          const { dataKey, txHash } = await cdr.consumer.accessCDR({ uuid: args.uuid, accessAuxData });
+          const { dataKey, txHash } = await withCdrRetry(() => cdr.consumer.accessCDR({ uuid: args.uuid, accessAuxData }));
           const parsed = await parseManifest({ storage: args.config.storage, manifestBytes: dataKey });
           return { ...parsed, txHash, reader: ephAddr, latencyMs: performance.now() - t0 };
         } finally {

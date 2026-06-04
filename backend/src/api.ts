@@ -304,6 +304,165 @@ app.get("/publishers/:root/resolutions", async (c) => {
   });
 });
 
+/* Available-to-claim royalties for a publisher root. Reads RoyaltyModule for the
+ * IP's royalty vault, then queries the vault's `claimableRevenue(claimer, token)`.
+ * Returns "0" when the IP has no vault yet (typical when no licenses minted). */
+const ROYALTY_MODULE = "0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086" as Address;
+const WIP_TOKEN = "0x1514000000000000000000000000000000000000" as Address;
+const royaltyModuleAbi = parseAbi([
+  "function ipRoyaltyVaults(address ipId) view returns (address)",
+]);
+const ipRoyaltyVaultAbi = parseAbi([
+  "function claimableRevenue(address claimer, address token) view returns (uint256)",
+]);
+
+app.get("/publishers/:root/claimable", async (c) => {
+  const root = c.req.param("root").toLowerCase() as Address;
+  const claimer = ((c.req.query("claimer") ?? root) as string).toLowerCase() as Address;
+  const token = ((c.req.query("token") ?? WIP_TOKEN) as string).toLowerCase() as Address;
+
+  try {
+    const vault = await publicClient.readContract({
+      address: ROYALTY_MODULE, abi: royaltyModuleAbi,
+      functionName: "ipRoyaltyVaults", args: [root],
+    });
+    if (vault === "0x0000000000000000000000000000000000000000") {
+      return c.json({ wip: "0", vault: null, claimer, lastChecked: new Date().toISOString() });
+    }
+    const claimable = await publicClient.readContract({
+      address: vault, abi: ipRoyaltyVaultAbi,
+      functionName: "claimableRevenue", args: [claimer, token],
+    });
+    return c.json({
+      wip: claimable.toString(),
+      vault,
+      claimer,
+      token,
+      lastChecked: new Date().toISOString(),
+    });
+  } catch (e) {
+    return c.json({ error: "claimable_probe_failed", detail: e instanceof Error ? e.message : String(e) }, 502);
+  }
+});
+
+/* ── Groups (Story GroupingModule)
+ *
+ * Like disputes, groups are written by the indexer when it sees on-chain
+ * `IPGroupRegistered` / `AddedIpToGroup` events. The PATCH endpoint lets the
+ * composer race ahead and persist the group's editorial title + description
+ * + publisher back-reference immediately after registering on-chain, instead
+ * of waiting for an indexer tick. */
+app.get("/groups", async (c) => {
+  const q = c.req.query();
+  const limit = Math.min(Number(q.limit ?? 50), 200);
+  const cond: any[] = [];
+  if (q.publisher) cond.push(eq(schema.groups.publisherRootIp, q.publisher.toLowerCase()));
+  if (q.owner) cond.push(eq(schema.groups.ownerWallet, q.owner.toLowerCase()));
+  const rows = await db.select().from(schema.groups)
+    .where(cond.length ? and(...cond) : undefined)
+    .orderBy(desc(schema.groups.createdAt)).limit(limit);
+  return c.json({
+    groups: rows.map((r) => ({
+      ...r,
+      licenseTermsId: r.licenseTermsId?.toString() ?? null,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  });
+});
+
+app.get("/groups/:groupId", async (c) => {
+  const groupId = c.req.param("groupId").toLowerCase();
+  const [g] = await db.select().from(schema.groups).where(eq(schema.groups.groupIpId, groupId));
+  if (!g) return c.json({ error: "not_found" }, 404);
+  const members = await db.select().from(schema.groupMembers)
+    .where(eq(schema.groupMembers.groupIpId, groupId)).limit(1000);
+  return c.json({
+    group: { ...g, licenseTermsId: g.licenseTermsId?.toString() ?? null, createdAt: g.createdAt.toISOString() },
+    members: members.map((m) => ({ ...m, addedAt: m.addedAt.toISOString(), removedAt: m.removedAt?.toISOString() ?? null })),
+  });
+});
+
+/* Composer race-ahead: persist editorial metadata for a group right after
+ * registering on-chain. Auth: caller's wallet must own the publisher root
+ * referenced. */
+app.patch("/groups/:groupId/metadata", async (c) => {
+  const siweWallet = await requireSiwe(c); if (!siweWallet) return c.json({ error: "auth_required" }, 401);
+  const groupId = c.req.param("groupId").toLowerCase();
+  const body = await c.req.json<{ title?: string; description?: string; publisherRootIp?: string; licenseTermsId?: string }>().catch(() => ({} as any));
+  if (body.publisherRootIp) {
+    const [pub] = await db.select().from(schema.publishers).where(eq(schema.publishers.publisherRootIp, body.publisherRootIp.toLowerCase()));
+    if (!pub || pub.wallet.toLowerCase() !== siweWallet.toLowerCase()) {
+      return c.json({ error: "forbidden", message: "publisher_root must be owned by signed-in wallet" }, 403);
+    }
+  }
+  const values: any = {
+    title: body.title?.trim() ?? null,
+    description: body.description?.trim() ?? null,
+    ownerWallet: siweWallet.toLowerCase(),
+  };
+  if (body.publisherRootIp) values.publisherRootIp = body.publisherRootIp.toLowerCase();
+  if (body.licenseTermsId) values.licenseTermsId = BigInt(body.licenseTermsId);
+  await db.insert(schema.groups).values({
+    groupIpId: groupId, groupPool: "", status: "active", ...values,
+  }).onConflictDoUpdate({
+    target: schema.groups.groupIpId,
+    set: values,
+  });
+  return c.json({ ok: true, groupId });
+});
+
+/* ── Disputes (Story DisputeModule)
+ *
+ * Disputes flow: client uses @usehatch/sdk's `raiseDispute` from the user's wallet
+ * → indexer (DisputeModule watcher) inserts into `disputes` table → these routes
+ * serve read-only listings. No server-side raiseDispute path — the bond must be
+ * paid by the challenger's wallet. */
+app.get("/disputes", async (c) => {
+  const q = c.req.query();
+  const limit = Math.min(Number(q.limit ?? 50), 200);
+  const cond: any[] = [];
+  if (q.targetIpId) cond.push(eq(schema.disputes.targetIpId, q.targetIpId.toLowerCase()));
+  if (q.publisher) cond.push(eq(schema.disputes.publisherRootIp, q.publisher.toLowerCase()));
+  if (q.hatchUuid) cond.push(eq(schema.disputes.hatchUuid, Number(q.hatchUuid)));
+  if (q.status) cond.push(eq(schema.disputes.status, q.status));
+  const rows = await db.select().from(schema.disputes)
+    .where(cond.length ? and(...cond) : undefined)
+    .orderBy(desc(schema.disputes.raisedAt)).limit(limit);
+  return c.json({
+    disputes: rows.map((r) => ({
+      ...r,
+      storyDisputeId: r.storyDisputeId.toString(),
+      bondWei: r.bondWei?.toString() ?? null,
+      raisedAt: r.raisedAt.toISOString(),
+      judgedAt: r.judgedAt?.toISOString() ?? null,
+      resolvedAt: r.resolvedAt?.toISOString() ?? null,
+    })),
+  });
+});
+
+/* Aggregate dispute status for a publisher — used to render the "disputed"
+ * badge on publisher cards without paging through every individual dispute. */
+app.get("/publishers/:root/dispute-status", async (c) => {
+  const root = c.req.param("root").toLowerCase();
+  const rows = await db.select({ status: schema.disputes.status }).from(schema.disputes)
+    .where(eq(schema.disputes.publisherRootIp, root));
+  const counts = { raised: 0, judgedTrue: 0, judgedFalse: 0, cancelled: 0, resolved: 0 };
+  for (const r of rows) {
+    if (r.status === "raised") counts.raised++;
+    else if (r.status === "judged-true") counts.judgedTrue++;
+    else if (r.status === "judged-false") counts.judgedFalse++;
+    else if (r.status === "cancelled") counts.cancelled++;
+    else if (r.status === "resolved") counts.resolved++;
+  }
+  return c.json({
+    publisherRootIp: root,
+    active: counts.raised,
+    judgedAgainst: counts.judgedTrue,
+    total: rows.length,
+    counts,
+  });
+});
+
 /* Publisher metrics — track record + subscriber/follower counts. */
 app.get("/publishers/:root/metrics", async (c) => {
   const root = c.req.param("root").toLowerCase();

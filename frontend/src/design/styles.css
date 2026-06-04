@@ -74,8 +74,15 @@ body {
   font-family: "IBM Plex Sans", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* `clip` is the modern intent (no scrollbar, no scroll). `hidden` is the
+   * fallback for iOS Safari which historically let `transform`d children
+   * escape `clip`. Both together resolve the horizontal-scroll bug where the
+   * user could shift-left on the landing and see empty space. */
+  overflow-x: hidden;
   overflow-x: clip;
 }
+html { overflow-x: hidden; overflow-x: clip; }
+#root { overflow-x: clip; }
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; cursor: pointer; }
 ::selection { background: var(--hot-soft); color: var(--ink); }
@@ -104,6 +111,8 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ---------- Layout helpers ---------- */
 .container { max-width: var(--maxw); margin: 0 auto; padding: 0 32px; width: 100%; }
+@media (max-width: 600px) { .container { padding: 0 18px; } }
+@media (max-width: 380px) { .container { padding: 0 14px; } }
 .section { padding: 96px 0; }
 .section--subtle { background: var(--bg-subtle); }
 .section--paper { background: var(--bg-paper); }
@@ -231,10 +240,22 @@ button { font-family: inherit; cursor: pointer; }
 .hatch-card { position: relative; background: var(--bg-surface); border: 1px solid var(--rule); border-radius: var(--r-md); padding: 24px; transition: border-color 200ms var(--ease), transform 200ms var(--ease); }
 .hatch-card:hover { border-color: var(--rule-strong); transform: translateY(-1px); }
 .card-seal { position: absolute; top: 18px; right: 18px; }
-.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: 34px; }
-.card-pub { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: 34px; min-width: 0; }
+.card-pub { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
 .avatar { width: 24px; height: 24px; border-radius: var(--r-pill); flex: none; display: grid; place-items: center; font-family: "Newsreader", serif; font-weight: 600; font-size: 12px; color: var(--hot-ink); }
-.card-handle { color: var(--ink); font-weight: 500; }
+.card-handle {
+  color: var(--ink);
+  font-weight: 500;
+  /* Long displayNames (e.g. "Test Pub Build 7") truncate with ellipsis so
+   * they cannot push the card head wider than the card itself on mobile.
+   * `min-width: 0` is required for flex children to shrink below content
+   * width; `max-width: 100%` keeps the ellipsis from being a no-op. */
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .verified-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--saffron); flex: none; }
 .card-title { margin: 14px 0 0; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .card-preview { margin: 12px 0 0; color: var(--ink-soft); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -276,12 +297,27 @@ button { font-family: inherit; cursor: pointer; }
 .footer-brand-tag { margin-top: 14px; color: var(--ink-soft); }
 .footer-trust { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--rule); display: flex; justify-content: center; text-align: center; }
 @media (max-width: 1000px) { .footer-grid { grid-template-columns: 1fr 1fr 1fr; gap: 32px; } }
-@media (max-width: 700px)  { .footer-grid { grid-template-columns: 1fr 1fr; gap: 28px; } }
+@media (max-width: 700px)  {
+  .footer-grid { grid-template-columns: 1fr 1fr; gap: 24px 20px; }
+  .footer-grid > div:nth-child(5) { grid-column: 1 / -1; }
+}
 @media (max-width: 480px)  { .footer-grid { grid-template-columns: 1fr; } }
+.footer-trust { flex-wrap: wrap; gap: 6px 10px; row-gap: 8px; }
 
 /* Brand mark — replaces the previous 🥚 emoji span in the wordmark.
    Sized to sit on the same baseline as the wordmark text (22px). */
 .egg-mark { display: inline-block; width: 22px; height: 22px; border-radius: 4px; object-fit: cover; vertical-align: middle; }
+
+/* Global safety net: long unbroken strings (contract addresses, hashes,
+ * `mono` className) overflow on narrow viewports. Force them to break
+ * mid-string so they never push their flex parent past the viewport. */
+@media (max-width: 600px) {
+  .mono { overflow-wrap: anywhere; word-break: break-all; }
+  .pending-row .m,
+  .pending-row .t { min-width: 0; overflow-wrap: anywhere; }
+  /* Tables on Track Record + similar pages. */
+  table { table-layout: fixed; width: 100%; }
+}
 
 /* ============================================================
    Footer wordmark — big serif HATCH, edge-to-edge.
@@ -502,3 +538,51 @@ button { font-family: inherit; cursor: pointer; }
 .skeleton { background: var(--bg-subtle); border-radius: var(--r-sm); position: relative; overflow: hidden; }
 .skeleton::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--bg-surface) 65%, transparent), transparent); transform: translateX(-100%); animation: shimmer 1600ms infinite; }
 @keyframes shimmer { 100% { transform: translateX(100%); } }
+
+/* ============================================================
+   Modal primitive (dispute, etc.)
+   ============================================================ */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(26,24,21,0.5);
+  z-index: 9999; display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.modal-panel {
+  background: var(--bg-overlay); border: 1px solid var(--rule);
+  border-radius: var(--r-md); max-width: 540px; width: 100%; padding: 24px;
+  box-shadow: var(--shadow-sm); max-height: calc(100vh - 32px);
+  overflow-y: auto; overscroll-behavior: contain;
+}
+.modal-actions {
+  display: flex; gap: 8px; margin-top: 20px;
+  justify-content: flex-end; flex-wrap: wrap;
+}
+@media (max-width: 560px) {
+  .modal-backdrop { padding: 0; align-items: flex-end; }
+  .modal-panel {
+    max-width: 100%; max-height: 92vh;
+    border-radius: 16px 16px 0 0;
+    padding: 20px 16px env(safe-area-inset-bottom);
+  }
+  .modal-actions { flex-direction: column-reverse; }
+  .modal-actions .btn { width: 100%; }
+}
+
+/* ============================================================
+   Wallet dropdown menu
+   ============================================================ */
+.wallet-menu {
+  position: absolute; right: 0; top: calc(100% + 6px);
+  background: var(--bg-overlay); border: 1px solid var(--rule);
+  border-radius: var(--r-sm); min-width: 200px; padding: 4px;
+  box-shadow: var(--shadow-sm); z-index: 60;
+}
+.wallet-menu button {
+  display: block; width: 100%; text-align: left;
+  padding: 8px 10px; border: 0; background: transparent;
+  color: var(--ink); border-radius: 4px; cursor: pointer;
+}
+.wallet-menu button:hover { background: var(--bg-subtle); }
+@media (max-width: 480px) {
+  .wallet-menu { right: -4px; min-width: 220px; }
+}

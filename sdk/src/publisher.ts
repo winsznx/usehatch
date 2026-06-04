@@ -1,8 +1,10 @@
 import type { Account, PublicClient, WalletClient } from "viem";
 import { parseEther } from "viem";
-import { PILFlavor, StoryClient } from "@story-protocol/core-sdk";
+import { StoryClient } from "@story-protocol/core-sdk";
 import type { HatchConfig } from "./config.js";
 import type { PublisherDescriptor } from "./types.js";
+import { type IpaMetadataInput, uploadIpaMetadata } from "./ipa-metadata.js";
+import { type PilFlavorName, pickPilTerms } from "./pil.js";
 
 const REGISTRY_ABI = [
   { type: "function", name: "registerPublisher", stateMutability: "nonpayable", inputs: [{ name: "rootIp", type: "address" }], outputs: [] },
@@ -33,6 +35,13 @@ export async function createPublisher(args: {
    *  Defaults to Story's public collection (0xc32A8a0FF3beDDDa58393d022aF433e78739FAbc on Aeneid)
    *  when the per-publisher createCollection path is blocked (Aeneid 2026-05-29 regression). */
   spgNftContract?: `0x${string}`;
+  /** PIL flavor for the subscription tier. Defaults to `commercialRemix` (the only flavor
+   *  that supports subscription minting fees with a positive revShare). */
+  pilFlavor?: PilFlavorName;
+  /** IPA metadata; when provided, JSON is built + hashed + uploaded to `config.storage`
+   *  and the URIs/hashes are passed to Story's mintAndRegisterIpAssetWithPilTerms. */
+  metadata?: IpaMetadataInput;
+  publicMetadataUrlBase?: string;
 }): Promise<PublisherDescriptor> {
   const { config, publicClient, walletClient, storyClient, account, collection, subscription } = args;
 
@@ -53,17 +62,25 @@ export async function createPublisher(args: {
   }
 
   // 2. Subscription-tier PIL terms attached to the publisher's root IP.
-  const subTerms = PILFlavor.commercialRemix({
+  const subTerms = pickPilTerms(args.pilFlavor ?? "commercialRemix", {
     defaultMintingFee: subscription.mintingFeeWip,
     currency: config.chain.wip,
-    commercialRevShare: subscription.commercialRevSharePct,
+    commercialRevSharePct: subscription.commercialRevSharePct,
     royaltyPolicy: config.chain.royaltyPolicyLap,
   });
+
+  const ipMetadata = args.metadata
+    ? await uploadIpaMetadata({
+        storage: config.storage,
+        metadata: args.metadata,
+        publicUrlBase: args.publicMetadataUrlBase,
+      })
+    : { ipMetadataURI: "", nftMetadataURI: "" };
 
   const reg = await storyClient.ipAsset.mintAndRegisterIpAssetWithPilTerms({
     spgNftContract,
     licenseTermsData: [{ terms: subTerms }],
-    ipMetadata: { ipMetadataURI: "", nftMetadataURI: "" },
+    ipMetadata,
   });
   const publisherRootIpId = reg.ipId!;
   const subscriptionTermsId = BigInt(reg.licenseTermsIds![0]);
@@ -124,19 +141,71 @@ export async function getPublisher(args: {
   return { rootIp: out[0], stake: out[1], verified: out[2], lastSlashAt: out[3] };
 }
 
-/** Helper: subscriber-side, wrap native IP to WIP. Used by the round-trip test
- *  before staking or paying minting fees in WIP. */
+const WIP_ABI = [
+  { type: "function", name: "deposit", stateMutability: "payable", inputs: [], outputs: [] },
+  { type: "function", name: "withdraw", stateMutability: "nonpayable", inputs: [{ name: "amount", type: "uint256" }], outputs: [] },
+  { type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ name: "", type: "bool" }] },
+  { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "owner", type: "address" }], outputs: [{ name: "", type: "uint256" }] },
+  { type: "function", name: "allowance", stateMutability: "view", inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], outputs: [{ name: "", type: "uint256" }] },
+] as const;
+
+/** Wrap native IP → WIP (deposit). Same call across testnet + mainnet (WIP address is identical). */
 export async function wrapNativeToWip(args: {
   config: HatchConfig; publicClient: PublicClient; walletClient: WalletClient; account: Account; amount: bigint;
 }): Promise<`0x${string}`> {
-  const WIP_DEPOSIT_ABI = [{ type: "function", name: "deposit", stateMutability: "payable", inputs: [], outputs: [] }] as const;
   const sim = await args.publicClient.simulateContract({
-    address: args.config.chain.wip, abi: WIP_DEPOSIT_ABI, functionName: "deposit",
+    address: args.config.chain.wip, abi: WIP_ABI, functionName: "deposit",
     args: [], account: args.account, value: args.amount,
   });
   const tx = await args.walletClient.writeContract(sim.request);
   await args.publicClient.waitForTransactionReceipt({ hash: tx });
   return tx;
+}
+
+/** Unwrap WIP → native IP. Mirror of `wrapNativeToWip`. */
+export async function unwrapWipToNative(args: {
+  config: HatchConfig; publicClient: PublicClient; walletClient: WalletClient; account: Account; amount: bigint;
+}): Promise<`0x${string}`> {
+  const sim = await args.publicClient.simulateContract({
+    address: args.config.chain.wip, abi: WIP_ABI, functionName: "withdraw",
+    args: [args.amount], account: args.account,
+  });
+  const tx = await args.walletClient.writeContract(sim.request);
+  await args.publicClient.waitForTransactionReceipt({ hash: tx });
+  return tx;
+}
+
+/** ERC-20 approve on the WIP token. Used before flows that pull WIP (subscribe minting fee,
+ *  registry stake, royalty payRoyaltyOnBehalf when called through periphery contracts). */
+export async function approveWip(args: {
+  config: HatchConfig; publicClient: PublicClient; walletClient: WalletClient; account: Account;
+  spender: `0x${string}`; amount: bigint;
+}): Promise<`0x${string}`> {
+  const sim = await args.publicClient.simulateContract({
+    address: args.config.chain.wip, abi: WIP_ABI, functionName: "approve",
+    args: [args.spender, args.amount], account: args.account,
+  });
+  const tx = await args.walletClient.writeContract(sim.request);
+  await args.publicClient.waitForTransactionReceipt({ hash: tx });
+  return tx;
+}
+
+/** Read WIP balance for an address. View call — no signing required. */
+export async function getWipBalance(args: {
+  config: HatchConfig; publicClient: PublicClient; owner: `0x${string}`;
+}): Promise<bigint> {
+  return args.publicClient.readContract({
+    address: args.config.chain.wip, abi: WIP_ABI, functionName: "balanceOf", args: [args.owner],
+  });
+}
+
+/** Read WIP allowance: how much `spender` can pull from `owner`. */
+export async function getWipAllowance(args: {
+  config: HatchConfig; publicClient: PublicClient; owner: `0x${string}`; spender: `0x${string}`;
+}): Promise<bigint> {
+  return args.publicClient.readContract({
+    address: args.config.chain.wip, abi: WIP_ABI, functionName: "allowance", args: [args.owner, args.spender],
+  });
 }
 
 // keep parseEther accessible to consumers of this module

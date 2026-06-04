@@ -47,7 +47,7 @@ export async function readHatchInBrowser(args: {
     entitlement,
     via: "wallet",
     walletClient: wiring.walletClient as unknown as Parameters<typeof sdkReadHatch>[0]["walletClient"],
-    account: wiring.account,
+    account: wiring.account as any,
   });
   return {
     text: result.text,
