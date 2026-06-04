@@ -475,7 +475,12 @@ function Compose({ onNearestState }) {
               if (composeKind === "group") groupComposeMut.mutate();
               else composeMut.mutate();
             }}
-            title={!wiring ? "Connect wallet on Story Aeneid" : ""}
+            title={
+              !wiring ? "Connect wallet on Story Aeneid (chain 1315)" :
+              composeMut.isPending ? "Seal in progress — wait for the current transactions to finish" :
+              groupComposeMut.isPending ? "Dataset seal in progress" :
+              ""
+            }
           >
             {phase === "uploading" ? "Encrypting + uploading…"
               : phase === "sealing" ? "Sealing on-chain…"
