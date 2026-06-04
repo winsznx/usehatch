@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { claimAllRevenue, createPublisher, getPublisher, setDelegate, stake, wrapNativeToWip } from "@usehatch/sdk";
 import { AENEID_FAUCET_URL, InsufficientNativeIpError, ensureWip } from "../lib/wip.js";
 import { formatEther, isAddress, parseEther } from "viem";
-import { BigCountdown, Curve, HatchOrb, OrbPip } from "./console_orb.jsx";
+import { BigCountdown, HatchOrb, OrbPip } from "./console_orb.jsx";
 import { Icons } from "./icons.jsx";
 import { Avatar, Button, pubDisplay } from "./primitives.jsx";
 import {
@@ -11,7 +11,6 @@ import {
   usePublisherClaimableQuery,
   usePublisherDisputeStatusQuery,
   usePublisherMetricsQuery,
-  usePublisherQuery,
   usePublisherResolutionsQuery,
   usePublishersQuery,
 } from "../lib/hooks.js";
