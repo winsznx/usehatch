@@ -11,7 +11,10 @@ import { privateKeyToAccount } from "viem/accounts";
 import { db, schema } from "./db/client.js";
 import { publicClient, CONTRACTS, indexerBus } from "./indexer.js";
 
-const PORT = Number(process.env.API_PORT ?? 4011);
+// Railway auto-injects PORT at runtime; fall back to API_PORT for local dev.
+// `||` (not `??`) so empty strings fall through — `API_PORT=${{PORT}}` from
+// Railway variable references resolves to an empty string at deploy time.
+const PORT = Number(process.env.PORT || process.env.API_PORT || 4011);
 
 /* ────────────────────────── durable session store (Postgres-backed)
  *
