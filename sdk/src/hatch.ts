@@ -69,26 +69,19 @@ export async function createHatch(args: {
       })
     : { ipMetadataURI: "", nftMetadataURI: "" };
 
-  // 1. Register the signal as a derivative of the publisher root, attaching per-hatch PIL terms.
-  //    We use mintAndRegisterIpAndMakeDerivative + ipAsset.registerPilTermsAndAttach in two steps for clarity.
-  const deriv = await storyClient.ipAsset.mintAndRegisterIpAndMakeDerivative({
-    spgNftContract: args.spgNftContract,
-    derivData: {
-      parentIpIds: [args.publisherRootIpId],
-      licenseTermsIds: [args.subscriptionTermsId],
-      maxMintingFee: parseEther("0.1"),
-      maxRts: 100_000_000,
-      maxRevenueShare: 100,
-    },
-    ipMetadata,
-  });
-  const signalIpId = deriv.ipId!;
-
+  /* Order matters here. Story rejects `registerPilTermsAndAttach` on any IP that
+     is already a derivative (LicensingModule__DerivativesCannotAddLicenseTerms).
+     So we register the per-hatch terms on the PUBLISHER ROOT first (the publisher
+     owns it; attach is permitted), then mint the signal IP as a derivative under
+     those freshly-attached terms. The root accumulates one PIL terms per hatch —
+     that's expected. Mode 1 (sub-only) and the non-commercial flavor have no
+     per-hatch buyers, so we skip the attach and inherit the subscription terms. */
   const flavor: PilFlavorName = args.pilFlavor ?? "commercialRemix";
   let perHatchTermsId: bigint;
-  if (flavor === "nonCommercialSocialRemixing") {
-    // Story pre-registers this flavor globally as id=1; no per-IP attach needed.
-    perHatchTermsId = NON_COMMERCIAL_SOCIAL_REMIXING_TERMS_ID;
+  if (args.mode === 1 /* sub-only */ || flavor === "nonCommercialSocialRemixing") {
+    perHatchTermsId = flavor === "nonCommercialSocialRemixing"
+      ? NON_COMMERCIAL_SOCIAL_REMIXING_TERMS_ID
+      : args.subscriptionTermsId;
   } else {
     const perHatchTerms = pickPilTerms(flavor, {
       defaultMintingFee: args.perHatchPriceWip,
@@ -97,10 +90,27 @@ export async function createHatch(args: {
       royaltyPolicy: args.royaltyPolicy ?? config.chain.royaltyPolicyLap,
     });
     const attach = await storyClient.license.registerPilTermsAndAttach({
-      ipId: signalIpId, licenseTermsData: [{ terms: perHatchTerms }],
+      ipId: args.publisherRootIpId, licenseTermsData: [{ terms: perHatchTerms }],
     });
     perHatchTermsId = BigInt(attach.licenseTermsIds![0]);
   }
+
+  /* Now mint the signal IP as a derivative of the publisher root inheriting the
+     per-hatch terms (or subscription terms for sub-only / non-commercial). Per-hatch
+     buyers mint a license at the signal IP under perHatchTermsId; subscribers
+     continue minting at the publisher root under subscriptionTermsId. */
+  const deriv = await storyClient.ipAsset.mintAndRegisterIpAndMakeDerivative({
+    spgNftContract: args.spgNftContract,
+    derivData: {
+      parentIpIds: [args.publisherRootIpId],
+      licenseTermsIds: [perHatchTermsId],
+      maxMintingFee: parseEther("0.1"),
+      maxRts: 100_000_000,
+      maxRevenueShare: 100,
+    },
+    ipMetadata,
+  });
+  const signalIpId = deriv.ipId!;
 
   // 2. Build manifest (encrypts + uploads media) and produce ≤1024-byte JSON bytes
   //    that we pass to the CDR vault as the dataKey.
