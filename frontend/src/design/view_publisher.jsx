@@ -1,6 +1,6 @@
 import React from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { claimAllRevenue, createPublisher, setDelegate, stake, wrapNativeToWip } from "@usehatch/sdk";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { claimAllRevenue, createPublisher, getPublisher, setDelegate, stake, wrapNativeToWip } from "@usehatch/sdk";
 import { AENEID_FAUCET_URL, InsufficientNativeIpError, ensureWip } from "../lib/wip.js";
 import { formatEther, isAddress, parseEther } from "viem";
 import { BigCountdown, Curve, HatchOrb, OrbPip } from "./console_orb.jsx";
@@ -61,9 +61,40 @@ function PublisherOnboard() {
   const [result, setResult] = useStateP(/** @type {null | { msg: string; tx?: string }} */(null));
   const [error, setError] = useStateP(/** @type {null | { msg: string; faucet?: boolean }} */(null));
 
+  /* On-chain pre-flight: ask the registry directly so we don't trust the indexer.
+     Each onboard click mints a fresh IPA *before* registerPublisher — if the registry
+     says we're already registered, we must stop early or we orphan IPAs every retry. */
+  const registeredQ = useQuery({
+    queryKey: ["onchain-publisher", session?.wallet?.toLowerCase() ?? "anon"],
+    enabled: !!wiring && !!session?.wallet,
+    refetchInterval: 5000,
+    queryFn: async () => {
+      if (!wiring || !session?.wallet) return null;
+      const p = await getPublisher({
+        config: { ...wiring.hatchConfig, storage: /** @type {any} */(null) },
+        publicClient: wiring.publicClient,
+        publisher: session.wallet,
+      });
+      const zero = "0x0000000000000000000000000000000000000000";
+      return p.rootIp.toLowerCase() === zero ? null : p;
+    },
+  });
+  const alreadyRegistered = !!registeredQ.data;
+
   const onboardMut = useMutation({
     mutationFn: async () => {
       if (!wiring) throw new Error("Connect wallet on Story Aeneid first");
+      /* Re-check just before the wallet pops — registry state may have changed
+         since the last query refetch. Stops us from minting a wasted IPA. */
+      const existing = await getPublisher({
+        config: { ...wiring.hatchConfig, storage: /** @type {any} */(null) },
+        publicClient: wiring.publicClient,
+        publisher: wiring.account.address,
+      });
+      if (existing.rootIp.toLowerCase() !== "0x0000000000000000000000000000000000000000") {
+        await qc.invalidateQueries({ queryKey: qk.publishers() });
+        throw new Error(`Already registered on-chain as ${existing.rootIp}. Refresh to load your dashboard.`);
+      }
       setPhase("registering");
       setError(null);
       const desc = await createPublisher({
@@ -99,6 +130,31 @@ function PublisherOnboard() {
       setError({ msg: e instanceof Error ? e.message : String(e), faucet: isFaucet });
     },
   });
+
+  if (alreadyRegistered && registeredQ.data) {
+    /* Registry says we're registered but the indexer-backed dashboard hasn't picked it
+       up yet. Show a recovery state instead of the onboard form so the user can't
+       waste another IPA by clicking Register again. */
+    return (
+      <div className="view">
+        <div className="mast">
+          <span className="mast-eyebrow"><I.Feather size={13} /> Already registered</span>
+          <h1 className="c-d1">Your publisher is live on-chain.</h1>
+          <div className="mast-summary ink-soft">
+            Indexer is still catching up to display your dashboard here. Root IP <span className="mono">{registeredQ.data.rootIp}</span>.
+          </div>
+        </div>
+        <div style={{ marginTop: 24, display: "flex", gap: 8 }}>
+          <Button variant="primary" size="md" onClick={() => { qc.invalidateQueries({ queryKey: qk.publishers() }); }}>
+            Refresh dashboard
+          </Button>
+          <Button variant="outline" size="md" onClick={() => { location.hash = "#/compose"; }}>
+            Go to Seal a hatch →
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="view">
