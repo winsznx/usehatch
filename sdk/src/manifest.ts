@@ -5,9 +5,25 @@ import { HatchError } from "./errors.js";
 
 const MANIFEST_MAX_BYTES = 1024;
 
+/* Universal base64url codec — works in browsers and Node ≥16 without `Buffer`.
+   Node's `Buffer.from(s, "base64url")` is missing in the npm `buffer` shim
+   used in browser builds, so the previous Buffer-backed impl threw
+   "Unknown encoding: base64url" in production. Uses atob/btoa, which are
+   standard on globalThis everywhere we ship. */
 const b64u = {
-  encode: (b: Uint8Array): string => Buffer.from(b).toString("base64url"),
-  decode: (s: string): Uint8Array => new Uint8Array(Buffer.from(s, "base64url")),
+  encode(b: Uint8Array): string {
+    let bin = "";
+    for (let i = 0; i < b.length; i++) bin += String.fromCharCode(b[i]);
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  },
+  decode(s: string): Uint8Array {
+    const pad = s.length % 4 ? "=".repeat(4 - (s.length % 4)) : "";
+    const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + pad;
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  },
 };
 
 export interface MediaInput {

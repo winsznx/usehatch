@@ -1,9 +1,3 @@
-/* Polyfill Node's `Buffer` global before any module that depends on it loads.
- * @piplabs/cdr-crypto's WASM wrapper calls `Buffer.alloc(...)` at runtime, which
- * blows up in the browser as "Buffer is not defined" during CDR vault encrypt. */
-import { Buffer } from "buffer";
-(globalThis as { Buffer?: typeof Buffer }).Buffer = Buffer;
-
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
