@@ -42,13 +42,14 @@ RUN cd frontend && pnpm build
 # `vite preview` which served 4 MB uncompressed with no cache headers.
 FROM node:22-bookworm-slim AS runner
 ENV NODE_ENV=production
-RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 WORKDIR /app
 
+# Fresh install of sirv-cli in the runner stage so all its transitive deps
+# (sade, kleur, mime, sirv, totalist, ...) resolve cleanly. Using npm to
+# avoid pnpm's symlink layout which does not survive a Docker layer copy.
+RUN npm install --omit=dev --no-audit --no-fund --no-package-lock sirv-cli@3.0.0
+
 COPY --from=builder /app/frontend/dist ./dist
-COPY --from=builder /app/frontend/node_modules/sirv-cli ./node_modules/sirv-cli
-COPY --from=builder /app/frontend/node_modules/.pnpm ./node_modules/.pnpm
-COPY --from=builder /app/frontend/node_modules/.bin/sirv ./node_modules/.bin/sirv
 
 EXPOSE 5173
 CMD ["sh", "-c", "./node_modules/.bin/sirv dist --host 0.0.0.0 --port ${PORT:-5173} --single --etag --gzip --brotli --immutable --quiet"]
