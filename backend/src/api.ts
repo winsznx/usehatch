@@ -272,16 +272,23 @@ async function requireSiwe(c: any): Promise<string | null> {
 }
 
 /* ── Public reads */
+/* Drizzle bigint-mode columns come back as JS BigInts; JSON.stringify rejects them.
+   Convert every bigint field on the publisher row to a string here once. */
+const serializePublisher = (r: typeof schema.publishers.$inferSelect) => ({
+  ...r,
+  stakeWei: r.stakeWei.toString(),
+  subscriptionTermsId: r.subscriptionTermsId != null ? r.subscriptionTermsId.toString() : null,
+});
 app.get("/publishers", async (c) => {
   const rows = await db.select().from(schema.publishers).orderBy(desc(schema.publishers.createdAt)).limit(100);
-  return c.json({ publishers: rows.map((r) => ({ ...r, stakeWei: r.stakeWei.toString() })) });
+  return c.json({ publishers: rows.map(serializePublisher) });
 });
 app.get("/publishers/:root", async (c) => {
   const root = c.req.param("root").toLowerCase();
   const [p] = await db.select().from(schema.publishers).where(eq(schema.publishers.publisherRootIp, root));
   if (!p) return c.json({ error: "not_found" }, 404);
   const [tr] = await db.select().from(schema.trackRecords).where(eq(schema.trackRecords.publisherRootIp, root));
-  return c.json({ publisher: { ...p, stakeWei: p.stakeWei.toString() }, trackRecord: tr ?? null });
+  return c.json({ publisher: serializePublisher(p), trackRecord: tr ?? null });
 });
 
 /* Resolutions for a publisher — joined hatches + outcomes. Used by Track Record. */
