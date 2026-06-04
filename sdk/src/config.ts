@@ -4,7 +4,10 @@ import type { Address } from "viem";
 export const AENEID = {
   chainId: 1315 as const,
   rpcUrl: "https://aeneid.storyrpc.io",
-  storyApiUrl: "http://172.192.41.96:1317",
+  /* Story REST API (Cosmos REST). Upstream is HTTP-only at an internal IP, so
+   * browsers running on an HTTPS origin block it as mixed content. We proxy
+   * the /dkg/* surface through our HTTPS backend — see backend api.ts. */
+  storyApiUrl: "https://api.usehatch.xyz/story-api",
   // Story core
   wip: "0x1514000000000000000000000000000000000000" as Address,
   licenseToken: "0xFe3838BFb30B34170F00030B52eA4893d8aAC6bC" as Address,

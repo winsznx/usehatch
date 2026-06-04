@@ -1117,6 +1117,28 @@ app.get("/healthz", async (c) => {
  * `livenessProbe` so transient DB blips don't trigger a pod restart. */
 app.get("/livez", (c) => c.json({ ok: true, ts: new Date().toISOString() }));
 
+/* HTTPS proxy for the Story REST API (Cosmos-style /dkg/* endpoints). The
+ * upstream Aeneid endpoint is HTTP-only at an internal IP (172.192.41.96:1317);
+ * browsers running our HTTPS frontend block mixed content, so we tunnel the
+ * `/dkg/*` GETs through here. CDR SDK is configured with this base URL via
+ * sdk/src/config.ts → AENEID.storyApiUrl. */
+const STORY_API_UPSTREAM = process.env.STORY_API_UPSTREAM ?? "http://172.192.41.96:1317";
+app.get("/story-api/*", async (c) => {
+  const path = c.req.path.replace(/^\/story-api/, "");
+  const search = new URL(c.req.url).search;
+  const upstream = `${STORY_API_UPSTREAM}${path}${search}`;
+  try {
+    const res = await fetch(upstream, { headers: { Accept: "application/json" } });
+    const text = await res.text();
+    return new Response(text, {
+      status: res.status,
+      headers: { "content-type": res.headers.get("content-type") ?? "application/json" },
+    });
+  } catch (e) {
+    return c.json({ error: "upstream_unreachable", detail: (e as Error).message }, 502);
+  }
+});
+
 export async function startServer() {
   await ensureServerStorage();
   const server = serve({ fetch: app.fetch, port: PORT });
